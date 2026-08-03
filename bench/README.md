@@ -144,6 +144,31 @@ OpenBLAS -- multi-threading is the one lever not yet tried, and the next
 one if more speed is ever needed (see the README's anti-goals: not pursued
 today, no concrete consumer requires it).
 
+## Accuracy: solve() vs solve(refine=true)
+
+`solve`'s plain float64 LU can miss the correctly-rounded answer by 1-2 ULP
+even on a well-scaled system (see ADR-0006). `refine=true` runs one step of
+`UniAccurate`-backed iterative refinement afterward. `nimble bench` prints
+both the added cost (`lu_solve` vs `lu_solve_refine`, same CSV/regression
+tracking as every other op) and the accuracy gained (`max|residual|` via
+`residual()`, an exact `b - Ax` computed through `UniAccurate.
+SuperAccumulator`), on the same random matrices at each `n`:
+
+| n   | cond2(A) | max\|residual\| plain | max\|residual\| refined | lu_solve | lu_solve_refine |
+|-----|----------|------------------------|---------------------------|----------|-------------------|
+| 16  | 32.1     | 1.27e-15               | 2.44e-16                  | 0.003 ms | 0.004 ms          |
+| 32  | 208.9    | 1.24e-14               | 1.72e-15                  | 0.010 ms | 0.013 ms          |
+| 64  | 237.0    | 5.35e-14                | 2.69e-15                 | 0.061 ms | 0.073 ms          |
+| 128 | 184.2    | 2.10e-14                | 7.44e-16                 | 0.269 ms | 0.334 ms          |
+
+One refinement step consistently drops the max residual by roughly one
+order of magnitude across these (genuinely random, moderately conditioned)
+matrices, for a ~15-25% total-time overhead on top of a fresh `solve` (the
+refinement step itself is O(n^2) against an O(n^3) factorization it reuses
+internally — `refineOnce` called directly on an already-decomposed matrix,
+skipping the redundant re-decomposition `solve(refine=true)` does, is
+cheaper still: ~0.4x a fresh `solve` at n=64, see ADR-0006).
+
 ## Regression gate
 
 `bench/bench.nim --csv:<file>` writes `op,n,ms,ops_per_sec`; a later run with
