@@ -1,7 +1,7 @@
 # UniLinalg test suite — known matrices, hand-checkable results
 # =============================================================================
 
-import std/[unittest, math]
+import std/[unittest, math, random]
 import ../src/UniLinalg
 
 func near(a, b: float64, eps = 1e-9): bool = abs(a - b) <= eps
@@ -101,6 +101,22 @@ suite "LU - solve, determinant, inverse":
                                    1.0, 0.0, 0.0])
     check almostEqual(a * inverse(a), identity[float64](3), 1e-9)
 
+  test "inverse refine=true reduces max|A*A^-1 - I|":
+    var r = initRand(11)
+    let n = 40
+    var a = initMatrix[float64](n, n)
+    for i in 0 ..< n:
+      for j in 0 ..< n:
+        a[i, j] = r.rand(2.0) - 1.0
+    let id = identity[float64](n)
+    proc maxAbsDiff(m: Matrix[float64]): float64 =
+      result = 0.0
+      for v in (m - id).data:
+        if abs(v) > result: result = abs(v)
+    let errPlain = maxAbsDiff(a * inverse(a))
+    let errRefined = maxAbsDiff(a * inverse(a, refine = true))
+    check errRefined < errPlain
+
 suite "Cholesky - SPD factorization":
   test "known 2x2 factor":
     # [[4, 2], [2, 3]] = L L^T with L = [[2, 0], [1, sqrt(2)]]
@@ -116,6 +132,17 @@ suite "Cholesky - SPD factorization":
     # check by substitution: A x == b
     let back = a * x
     check near(back[0], 10.0) and near(back[1], 8.0)
+
+  test "choleskyRefineOnce recovers the exactly-rounded answer":
+    # Same technique as LU's refine (ADR-0006): b=[1,1] against this A
+    # lands 1 ULP off in x[1] (0.24999999999999997, not 0.25).
+    let a = matrix[float64](2, 2, [4.0, 2.0, 2.0, 3.0])
+    let l = cholesky(a)
+    let b = [1.0, 1.0]
+    let x0 = choleskySolve(l, b)
+    check x0 != @[0.125, 0.25]
+    let x1 = choleskyRefineOnce(a, l, b, x0)
+    check x1 == @[0.125, 0.25]
 
   test "non-SPD matrix is rejected":
     let notSpd = matrix[float64](2, 2, [1.0, 2.0, 2.0, 1.0]) # eigenvalue -1
@@ -150,6 +177,27 @@ suite "QR - Householder":
     let coeffs = leastSquares(a, [1.0, 2.0, 6.0])
     # analytic answer: sum(x*y)/sum(x^2) = (1 + 4 + 18)/14 = 23/14
     check near(coeffs[0], 23.0 / 14.0)
+
+  test "leastSquares refine=true reduces max|residual| (Bjorck refinement)":
+    # Exactly consistent overdetermined system (b in A's column space), so
+    # any residual is pure float64 rounding, not model noise.
+    var r = initRand(7)
+    let m = 30
+    let n = 6
+    var a = initMatrix[float64](m, n)
+    for i in 0 ..< m:
+      for j in 0 ..< n:
+        a[i, j] = r.rand(2.0) - 1.0
+    var xtrue = newSeq[float64](n)
+    for j in 0 ..< n: xtrue[j] = r.rand(10.0) - 5.0
+    let b = a * xtrue
+    proc maxAbs(v: seq[float64]): float64 =
+      result = 0.0
+      for x in v:
+        if abs(x) > result: result = abs(x)
+    let plain = leastSquares(a, b)
+    let refined = leastSquares(a, b, refine = true)
+    check maxAbs(residual(a, b, refined)) < maxAbs(residual(a, b, plain))
 
 suite "SVD - one-sided Jacobi":
   test "diagonal matrix: singular values sorted":

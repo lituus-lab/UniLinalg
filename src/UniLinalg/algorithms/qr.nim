@@ -15,6 +15,8 @@
 import std/math
 import ../types/matrix
 import contracts
+import ./refine
+export refine
 
 type
   QrDecomposition*[T] = object
@@ -96,29 +98,26 @@ func qrDecompose*[T: SomeFloat](a: Matrix[T]): QrDecomposition[
       for i in k + 1 ..< m:
         result.r.data[i * rCols + k] = T(0)
 
-func leastSquares*[T: SomeFloat](a: Matrix[T], b: openArray[T]): seq[
+func qrSolve*[T: SomeFloat](d: QrDecomposition[T], b: openArray[T]): seq[
     T] {.contractual.} =
-  ## Minimizes the residual norm ‖Ax - b‖ for an overdetermined system (m >= n) through QR:
-  ## R x = Q^T b, back-substituted on the top n rows.
-  ## More stable than the normal equations (A^T A x = A^T b), whose
-  ## conditioning is squared.
+  ## Solves the top n x n triangular system given Q, R from qrDecompose:
+  ## R x = Q^T b, back-substituted on the top n rows. More stable than the
+  ## normal equations (A^T A x = A^T b), whose conditioning is squared.
   ##
-  ## Shape preconditions are debug-only `require:`; the rank-deficient case is a
+  ## Shape precondition is debug-only `require:`; the rank-deficient case is a
   ## body `raise ValueError` (release-safe domain guard — a `require:` would
   ## compile away and let the back-substitution divide by zero silently).
   require:
-    a.rows >= a.cols
-    b.len == a.rows
+    b.len == d.q.rows
   ensure:
-    result.len == a.cols
+    result.len == d.r.cols
   body:
-    let n = a.cols
-    let d = qrDecompose(a)
-    # qtb = Q^T b
-    var qtb = newSeq[T](a.rows)
-    for i in 0 ..< a.rows:
+    let n = d.r.cols
+    # qtb = Q^T b, top n entries only -- the rest is never read below.
+    var qtb = newSeq[T](n)
+    for i in 0 ..< n:
       var acc = T(0)
-      for k in 0 ..< a.rows:
+      for k in 0 ..< d.q.rows:
         acc = acc + d.q[k, i] * b[k]
       qtb[i] = acc
     # Rank-deficiency threshold relative to R's largest diagonal magnitude:
@@ -135,8 +134,45 @@ func leastSquares*[T: SomeFloat](a: Matrix[T], b: openArray[T]): seq[
       for j in i + 1 ..< n:
         acc = acc - d.r[i, j] * result[j]
       if abs(d.r[i, i]) <= diagTol:
-        raise newException(ValueError, "leastSquares: rank-deficient matrix")
+        raise newException(ValueError, "qrSolve: rank-deficient matrix")
       result[i] = acc / d.r[i, i]
+
+func qrRefineOnce*[T: SomeFloat](a: Matrix[T], d: QrDecomposition[T],
+    b, x: openArray[T]): seq[T] {.contractual.} =
+  ## One step of Björck-style iterative refinement for least squares:
+  ## corrects `x` using the exact residual (needs the original `a`, m x n,
+  ## not just the QR factors) and the *same* Q, R -- A's decomposition
+  ## doesn't depend on the right-hand side, so the correction `dx` solving
+  ## min ‖A dx - r‖ reuses `d` exactly as `leastSquares` did for `b`. See
+  ## ADR-0006.
+  require:
+    a.rows >= a.cols
+    b.len == a.rows
+    x.len == a.cols
+  ensure:
+    result.len == a.cols
+  body:
+    let r = residual(a, b, x)
+    let dx = qrSolve(d, r)
+    result = newSeq[T](a.cols)
+    for i in 0 ..< a.cols:
+      result[i] = x[i] + dx[i]
+
+func leastSquares*[T: SomeFloat](a: Matrix[T], b: openArray[T],
+    refine: bool = false): seq[T] {.contractual.} =
+  ## Minimizes the residual norm ‖Ax - b‖ for an overdetermined system (m >= n)
+  ## through QR. `refine` (default false): one `qrRefineOnce` correction pass
+  ## after the solve (same reasoning as LU's `solve`; see ADR-0006).
+  require:
+    a.rows >= a.cols
+    b.len == a.rows
+  ensure:
+    result.len == a.cols
+  body:
+    let d = qrDecompose(a)
+    result = qrSolve(d, b)
+    if refine:
+      result = qrRefineOnce(a, d, b, result)
 
 
 
