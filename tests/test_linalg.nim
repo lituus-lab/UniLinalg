@@ -44,6 +44,38 @@ suite "LU - solve, determinant, inverse":
     let x = solve(a, [8.0, 13.0, 6.0])
     check near(x[0], 1.0) and near(x[1], 2.0) and near(x[2], 3.0)
 
+  test "refine recovers the exactly-rounded answer the plain solve misses":
+    # Same system as above: the plain float64 solve lands 1-2 ULP off
+    # (1.0000000000000007, 2.0, 2.9999999999999996) even though (1, 2, 3) is
+    # exactly representable -- verified against Rational[BigInt]/BigFloat(256)
+    # ground truth. refine=true recovers it exactly here.
+    let a = matrix[float64](3, 3, [1.0, 2.0, 1.0,
+                                   2.0, 1.0, 3.0,
+                                   1.0, 1.0, 1.0])
+    let plain = solve(a, [8.0, 13.0, 6.0])
+    check plain != @[1.0, 2.0, 3.0] # the ULP-level noise this test guards against
+    let x = solve(a, [8.0, 13.0, 6.0], refine = true)
+    check x == @[1.0, 2.0, 3.0]
+
+  test "refineOnce on top of an existing LU factorization":
+    let a = matrix[float64](3, 3, [1.0, 2.0, 1.0,
+                                   2.0, 1.0, 3.0,
+                                   1.0, 1.0, 1.0])
+    let b = [8.0, 13.0, 6.0]
+    let d = luDecompose(a)
+    let x0 = luSolve(d, b)
+    let x1 = refineOnce(a, d, b, x0)
+    check x1 == @[1.0, 2.0, 3.0]
+
+  test "residual is exact even when it falls below b's own ULP":
+    let a = matrix[float64](3, 3, [1.0, 2.0, 1.0,
+                                   2.0, 1.0, 3.0,
+                                   1.0, 1.0, 1.0])
+    let b = [8.0, 13.0, 6.0]
+    let x0 = solve(a, b)
+    let r = residual(a, b, x0)
+    check r == @[-2.220446049250313e-16, 0.0, -2.220446049250313e-16]
+
   test "pivoting handles a zero leading entry":
     # without row swaps this matrix divides by zero immediately
     let a = matrix[float64](2, 2, [0.0, 1.0, 1.0, 0.0])
