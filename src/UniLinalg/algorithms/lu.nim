@@ -25,6 +25,7 @@
 # References: Golub & Van Loan §3.2 (LU with partial pivoting).
 
 import contracts
+import UniMath
 import ../types/matrix
 
 type
@@ -121,10 +122,56 @@ func luSolve*[T: SomeFloat](d: LuDecomposition[T], b: openArray[T]): seq[
       result[i] = acc / d.lu[i, i]
     result
 
-func solve*[T: SomeFloat](a: Matrix[T], b: openArray[T]): seq[
+func residual*[T: SomeFloat](a: Matrix[T], b, x: openArray[T]): seq[
     T] {.contractual.} =
+  ## Exact `b - Ax` via UniAccurate's `SuperAccumulator`: `-b[i]` and every
+  ## `a[i,j]*x[j]` product accumulate into the same exact accumulator before
+  ## a single rounding. Rounding a compensated dot product to `T` first and
+  ## only then subtracting `b[i]` in plain arithmetic instead throws away
+  ## exactly the bit `refineOnce` below needs, whenever the true residual is
+  ## smaller than `b[i]`'s own ULP -- verified: that alternative makes
+  ## `refineOnce` a no-op on the book's own LU example. See ADR-0006.
+  require: a.isSquare and b.len == a.rows and x.len == a.rows
+  ensure:
+    result.len == a.rows
+  body:
+    let n = a.rows
+    result = newSeq[T](n)
+    for i in 0 ..< n:
+      var acc: SuperAccumulator[T]
+      initSuperAccumulator(acc)
+      acc.add(-b[i])
+      for j in 0 ..< n:
+        acc.addProduct(a[i, j], x[j])
+      result[i] = -round(acc)
+
+func refineOnce*[T: SomeFloat](a: Matrix[T], d: LuDecomposition[T],
+    b, x: openArray[T]): seq[T] {.contractual.} =
+  ## One step of iterative refinement: corrects an approximate solution `x`
+  ## (typically `luSolve`/`solve`'s own output) using the exact residual
+  ## above and the already-computed LU factors. O(n^2) — reuses the O(n^3)
+  ## factorization in `d`, so it costs less than a fresh `solve` (measured:
+  ## ~0.4x a full solve at n=64; see `bench/README.md`). See ADR-0006.
+  require: a.isSquare and b.len == a.rows and x.len == a.rows
+  ensure:
+    result.len == a.rows
+  body:
+    let r = residual(a, b, x)
+    let dx = luSolve(d, r)
+    result = newSeq[T](a.rows)
+    for i in 0 ..< a.rows:
+      result[i] = x[i] + dx[i]
+
+func solve*[T: SomeFloat](a: Matrix[T], b: openArray[T],
+    refine: bool = false): seq[T] {.contractual.} =
   ## One-shot Ax = b. Decomposes then solves; reuse luDecompose when
   ## solving several right-hand sides against the same matrix.
+  ##
+  ## `refine` (default false): run one step of UniAccurate-backed iterative
+  ## refinement after the LU solve. Plain float64/float32 solves can miss
+  ## the correctly-rounded answer by 1-2 ULP when the true residual falls
+  ## below the right-hand side's own rounding resolution; refinement
+  ## recovers it at `residual`'s O(n^2) cost. See ADR-0006.
   ##
   ## Precondition: `a` is square and `b` matches its size. Postcondition:
   ## the solution has one entry per row of `a`.
@@ -132,7 +179,10 @@ func solve*[T: SomeFloat](a: Matrix[T], b: openArray[T]): seq[
   ensure:
     result.len == a.rows
   body:
-    luSolve(luDecompose(a), b)
+    let d = luDecompose(a)
+    result = luSolve(d, b)
+    if refine:
+      result = refineOnce(a, d, b, result)
 
 func det*[T: SomeFloat](a: Matrix[T]): T {.contractual.} =
   ## Determinant through LU: det(A) = sign(P) * product of U's diagonal.
