@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 lituus-lab
 # UniLinalg — Vector[D,T]: fixed-dimension geometric/physical vector
 # =============================================================================
 #
@@ -7,11 +9,7 @@
 # the rationale.
 #
 # The scalar T is a UniMath `RealField` (ordered field + sqrt + abs): float32/
-# float64 and the exact scalars Fixed/Rational/BigFloat all qualify. `length`
-# calls `sqrt` unqualified, so float resolves to the hardware std/math root and
-# the exact types resolve to their UniMath roots; `zero(T)`/`one(T)` build the
-# constants uniformly across all of them. A geometry library consuming this
-# concept can refine it further with sin/cos for rotations.
+# float64 and the exact scalars Fixed/Rational/BigFloat all qualify.
 
 import std/math
 import UniMath
@@ -60,6 +58,10 @@ func unitVector*[D: static[int], T: RealField](axis: int): Vector[D,
   ## rest of the library's shape/domain doctrine -- non-blocking in release).
   require: axis in 0 ..< D
   body:
+    # Every component starts at zero(T) (matching zeroVector), not the raw
+    # zero-initialized memory of an object-based RealField like Rational.
+    for i in 0 ..< D:
+      result.data[i] = zero(T)
     result.data[axis] = one(T)
 
 # ------------------------------------------------------------------------------
@@ -189,13 +191,16 @@ func length*[D: static[int], T: RealField](v: Vector[D, T]): T {.inline.} =
   sqrt(lengthSquared(v))
 
 func normalize*[D: static[int], T: RealField](v: Vector[D, T]): Vector[D, T] =
-  ## Unit vector in the same direction, or the zero vector if `v` is zero
-  ## (does not raise).
+  ## Unit vector in the same direction, or the zero vector if `v` is exactly
+  ## zero (does not raise). A NaN length (e.g. from a NaN component) is not
+  ## exactly zero, so it proceeds through v / len and stays NaN, rather than
+  ## being silently masked as the zero vector -- `len > zero(T)` treats NaN
+  ## as false (any IEEE754 comparison with NaN except != is false).
   let len = length(v)
-  if len > zero(T):
-    result = v / len
-  else:
+  if len == zero(T):
     result = zeroVector[D, T]()
+  else:
+    result = v / len
 
 func isZero*[D: static[int], T: RealField](v: Vector[D, T], eps: T): bool =
   lengthSquared(v) < eps * eps

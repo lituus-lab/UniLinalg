@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 lituus-lab
 # UniLinalg — Dense matrix type and basic operations
 # =============================================================================
 #
@@ -8,13 +10,12 @@
 # Genericity: storage and ring operations (+, -, *) work for any numeric T.
 # Decompositions need division and sqrt and are constrained to floats there.
 #
-# Contracts (NimContracts): shape preconditions on the constructors and ring
-# operations are debug-only `require:` — non-blocking in release, matching the
-# contract doctrine adopted by the decomposition modules (lu/cholesky/qr/svd).
-# The pre-1.0 version used release-active `doAssert`s here, which violated the
-# "non bloquants en release" doctrine and were inconsistent with the rest of
-# UniLinalg. Structural postconditions use only the non-contracted `rows`/
-# `cols` fields and `data.len`. Compiled away under -d:release/-d:danger.
+# Contracts (NimContracts): shape preconditions on the constructors, ring
+# operations, and accessors are debug-only `require:` — non-blocking in
+# release. No `ensure:` here: every result shape in this file is a direct
+# function of its own inputs (already checked by `require:`), so a
+# structural postcondition would just restate the precondition. Compiled
+# away under -d:release/-d:danger.
 
 import contracts
 
@@ -37,28 +38,34 @@ func initMatrix*[T](rows, cols: int): Matrix[T] {.contractual.} =
 func matrix*[T](rows, cols: int, elements: openArray[T]): Matrix[
     T] {.contractual.} =
   ## Matrix from a flat row-major element list.
-  require: elements.len == rows * cols
+  require: rows > 0 and cols > 0 and elements.len == rows * cols
   body:
     result = initMatrix[T](rows, cols)
     for i in 0 ..< elements.len:
       result.data[i] = elements[i]
 
-func identity*[T](n: int): Matrix[T] =
+func identity*[T](n: int): Matrix[T] {.contractual.} =
   ## Identity matrix of size n.
-  result = initMatrix[T](n, n)
-  for i in 0 ..< n:
-    result.data[i * n + i] = T(1)
+  require: n > 0
+  body:
+    result = initMatrix[T](n, n)
+    for i in 0 ..< n:
+      result.data[i * n + i] = T(1)
 
 # ------------------------------------------------------------------------------
 # Element access
 # ------------------------------------------------------------------------------
 
-func `[]`*[T](m: Matrix[T], i, j: int): T {.inline.} =
+func `[]`*[T](m: Matrix[T], i, j: int): T {.inline, contractual.} =
   ## Element (i, j), zero-based.
-  m.data[i * m.cols + j]
+  require: i >= 0 and i < m.rows and j >= 0 and j < m.cols
+  body:
+    m.data[i * m.cols + j]
 
-func `[]=`*[T](m: var Matrix[T], i, j: int, v: T) {.inline.} =
-  m.data[i * m.cols + j] = v
+func `[]=`*[T](m: var Matrix[T], i, j: int, v: T) {.inline, contractual.} =
+  require: i >= 0 and i < m.rows and j >= 0 and j < m.cols
+  body:
+    m.data[i * m.cols + j] = v
 
 func isSquare*[T](m: Matrix[T]): bool {.inline.} =
   m.rows == m.cols
@@ -89,8 +96,8 @@ func `*`*[T](a, b: Matrix[T]): Matrix[T] {.contractual.} =
   ##
   ## Row-base offsets (aRow/bRow/rRow) are hoisted out of the k/j loops
   ## instead of going through `[]` (which recomputes `row*cols+col` on every
-  ## call): measured ~1.6-2x on this repo's own bench/compare/vs_lapack.nim,
-  ## same algorithm, bit-identical output -- see bench/README.md.
+  ## call) -- same algorithm, bit-identical output. See bench/README.md for
+  ## measured numbers.
   require: a.cols == b.rows
   body:
     let aCols = a.cols
@@ -110,10 +117,12 @@ func `*`*[T](m: Matrix[T], v: openArray[T]): seq[T] {.contractual.} =
   require: m.cols == v.len
   body:
     result = newSeq[T](m.rows)
+    let mCols = m.cols
     for i in 0 ..< m.rows:
+      let iRow = i * mCols
       var acc = T(0)
-      for j in 0 ..< m.cols:
-        acc = acc + m[i, j] * v[j]
+      for j in 0 ..< mCols:
+        acc = acc + m.data[iRow + j] * v[j]
       result[i] = acc
 
 func `*`*[T](s: T, m: Matrix[T]): Matrix[T] =
@@ -137,13 +146,15 @@ func `==`*[T](a, b: Matrix[T]): bool =
 
 func almostEqual*[T: SomeFloat](a, b: Matrix[T], eps: T = T(1e-9)): bool =
   ## Element-wise comparison with tolerance (floats accumulate round-off).
-  ## False for a negative, NaN, or infinite `eps` (never "everything matches").
+  ## False for a negative, NaN, or infinite `eps`, or a NaN element on
+  ## either side (never "everything matches").
   if eps < T(0) or eps != eps or eps == T(Inf):
     return false
   if a.rows != b.rows or a.cols != b.cols:
     return false
   for i in 0 ..< a.data.len:
-    if abs(a.data[i] - b.data[i]) > eps:
+    let d = a.data[i] - b.data[i]
+    if d != d or abs(d) > eps: # d != d catches NaN (NaN - x is NaN)
       return false
   true
 

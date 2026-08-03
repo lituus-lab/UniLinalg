@@ -41,7 +41,7 @@ below has the hand-checkable solution (1, 2, 3)."""),
                                 [2.0, 1.0, 3.0],
                                 [1.0, 1.0, 1.0]])
 a.solve([8.0, 13.0, 6.0])"""),
-    ("md", """The plain solve above is 1-2 ULP off (1, 2, 3) is exactly
+    ("md", """The plain solve above is 1-2 ULP off -- (1, 2, 3) is exactly
 representable, but float64 Gaussian elimination doesn't land on it.
 `refine=True` runs one step of UniAccurate-backed iterative refinement and
 recovers the exactly-rounded answer here (ADR-0006)."""),
@@ -53,8 +53,8 @@ except ValueError as exc:
     print("ValueError:", exc)"""),
     ("md", "## Cholesky, QR, SVD"),
     ("code", """spd = unilinalg.Matrix.from_rows([[4.0, 2.0], [2.0, 3.0]])
-l = spd.cholesky()
-l.to_rows()"""),
+lower = spd.cholesky()
+lower.to_rows()"""),
     ("code", """try:
     unilinalg.Matrix.from_rows([[1.0, 2.0], [2.0, 1.0]]).cholesky()
 except ValueError as exc:
@@ -62,15 +62,17 @@ except ValueError as exc:
     ("code", """diag = unilinalg.Matrix.from_rows([[2.0, 0.0], [0.0, 5.0]])
 u, s, v = diag.svd()
 s"""),
-    ("md", """## Vector2/Vector3: fixed-dimension geometric vectors
+    ("md", """## Vec2/Vec3/Vec4: fixed-dimension geometric vectors
 
-`Vec2`/`Vec3` are distinct from `Matrix`: fixed dimension, not row/column
-counts. `length()` routes through UniMath's `sqrtNewtonGeneric` on the Nim
-side -- a real dependency, not a decorative one (see the book)."""),
+`Vec2`/`Vec3`/`Vec4` are distinct from `Matrix`: fixed dimension, not
+row/column counts. `length` (a property, not a method) routes through
+UniMath's `sqrtNewtonGeneric` on the Nim side -- a real dependency, not a
+decorative one (see the book)."""),
     ("code", """x = unilinalg.Vec3(1.0, 0.0, 0.0)
 y = unilinalg.Vec3(0.0, 1.0, 0.0)
 x.cross(y)"""),
     ("code", "unilinalg.Vec2(3.0, 4.0).length"),
+    ("code", "unilinalg.Vec4(1.0, 2.0, 2.0, 0.0).length"),
     ("md", "A non-numeric component is a type error, not a coercion."),
     ("code", """try:
     unilinalg.Vec2("x", 1.0)
@@ -83,7 +85,8 @@ contract is expressed by NULL/negative-count/error-code returns instead of
 raising -- an exception must never unwind across an ABI boundary:
 
 ```c
-ulin_matrix_lu_solve(h, b, blen, out, out_cap, false);  /* -1 on singular/shape error */
+ulin_matrix_lu_solve(h, b, blen, out, out_cap, false);  /* negated ULIN_ERR_*
+    (e.g. -ULIN_ERR_SINGULAR, -ULIN_ERR_SHAPE_MISMATCH) on failure */
 ulin_matrix_cholesky(h);                         /* NULL if not SPD */
 ```
 
@@ -107,10 +110,11 @@ def main():
     # package, and the notebook would stop testing what it claims to test.
     NotebookClient(nb, timeout=120, kernel_name="python3",
                    resources={"metadata": {"path": ROOT}}).execute()
-    with open(OUT, "w") as f:
+    with open(OUT, "w", encoding="utf-8") as f:
         nbf.write(nb, f)
     print(f"wrote {OUT}")
 
 
 if __name__ == "__main__":
     main()
+

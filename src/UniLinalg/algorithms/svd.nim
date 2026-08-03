@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 lituus-lab
 # UniLinalg — Singular Value Decomposition (one-sided Jacobi)
 # =============================================================================
 #
@@ -35,6 +37,8 @@ func svdDecompose*[T: SomeFloat](a: Matrix[T],
   ## properties covered by the SVD tests, not cheap invariants.
   require:
     a.rows >= a.cols
+    tol > T(0)
+    maxSweeps > 0
   ensure:
     result.u.rows == a.rows and result.u.cols == a.cols and
     result.s.len == a.cols and
@@ -68,7 +72,7 @@ func svdDecompose*[T: SomeFloat](a: Matrix[T],
             app = app + wip * wip
             aqq = aqq + wiq * wiq
             apq = apq + wip * wiq
-          if abs(apq) <= tol * sqrt(app * aqq):
+          if abs(apq) <= tol * sqrt(app) * sqrt(aqq):
             continue # this pair is already orthogonal
           offDiagonal = true
           # Jacobi rotation annihilating the (p, q) Gram entry

@@ -1,16 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 lituus-lab
 ## UniLinalg vs Arraymancer -- compiled-code A/B comparison
 ## ============================================================
 ##
-## Arraymancer is a real, actively-used Nim tensor library, itself backed by
-## BLAS/LAPACK (via nimblas/nimlapack) rather than hand-written kernels --
-## a second, independent "performant oracle" from within the same language
-## and ecosystem, distinct from calling raw LAPACK directly (bench/compare/
-## vs_lapack.nim). Both sides compiled Nim in one binary, same clock.
-##
-## Only solve/qr/svd are compared: Arraymancer does not publicly expose a
-## Cholesky or determinant proc (see arraymancer/linear_algebra/decomposition.nim
-## and linear_systems.nim -- lu_permuted exists but does not return the
-## permutation sign needed for a signed determinant).
+## Compares solve/qr/svd against Arraymancer (BLAS/LAPACK-backed), both
+## compiled Nim in one binary, same clock. See bench/README.md for why this
+## comparison exists alongside vs_lapack.nim, and why only these three ops.
 ##
 ## Usage: nim c -r -d:release --path:<arraymancer> bench/compare/vs_arraymancer.nim [--csv:<file>]
 import std/[random, monotimes, times, strformat, math, os, strutils]
@@ -97,10 +92,12 @@ type CsvRow = object
   ms: float
 
 var csvRows: seq[CsvRow]
+var anyFailure = false
 
 proc report(op: string, n: int, uniMs, amMs: float, uniOk, amOk: bool) =
   csvRows.add CsvRow(op: op, tool: "unilinalg", n: n, ms: uniMs)
   csvRows.add CsvRow(op: op, tool: "arraymancer", n: n, ms: amMs)
+  if not uniOk or not amOk: anyFailure = true
   let ratio = uniMs / amMs
   let uniTag = if uniOk: "ok" else: "FAIL"
   let amTag = if amOk: "ok" else: "FAIL"
@@ -114,23 +111,32 @@ proc compareAll() =
   for n in [16, 32, 64, 128, 256]:
     let a = randMatrix(n, 31)
     let b = randVec(n, 32)
-    var x, xA: seq[float64]
+    var x: seq[float64]
     let uniMs = timed: x = solve(a, b)
-    let amMs = timed: xA = toSeq1D(solve(toTensor2D(a), toTensor1D(b)))
+    # Tensor conversion happens outside the timed block, same reasoning as
+    # vs_lapack.nim: it is marshalling overhead, not part of what Arraymancer's
+    # own solve() computes, and would understate its real speed if counted.
+    let at = toTensor2D(a)
+    let bt = toTensor1D(b)
+    var xt: Tensor[float64]
+    let amMs = timed: xt = solve(at, bt)
+    let xA = toSeq1D(xt)
     report("solve", n, uniMs, amMs, solveResidual(a, b, x) < Tol,
         solveResidual(a, b, xA) < Tol)
 
   for n in [16, 32, 64, 128]:
     let a = randMatrix(n, 33)
-    var qU, rU, qA, rA: Matrix[float64]
+    var qU, rU: Matrix[float64]
     let uniMs = timed:
       let d = qrDecompose(a)
       qU = d.q
       rU = d.r
+    let at = toTensor2D(a)
+    var qt, rt: Tensor[float64]
     let amMs = timed:
-      let (qt, rt) = qr(toTensor2D(a))
-      qA = fromTensor2D(qt)
-      rA = fromTensor2D(rt)
+      (qt, rt) = qr(at)
+    let qA = fromTensor2D(qt)
+    let rA = fromTensor2D(rt)
     let (uniRecon, uniOrth) = qrResidual(a, qU, rU)
     let (amRecon, amOrth) = qrResidual(a, qA, rA)
     report("qr", n, uniMs, amMs, uniRecon < Tol and uniOrth < Tol,
@@ -138,8 +144,8 @@ proc compareAll() =
 
   for n in [16, 32, 64]:
     let a = randMatrix(n, 34)
-    var sU, sA: seq[float64]
-    var uU, vU, uA, vA: Matrix[float64]
+    var sU: seq[float64]
+    var uU, vU: Matrix[float64]
     var dU: SvdDecomposition[float64]
     let uniMs = timed:
       dU = svdDecompose(a)
@@ -149,11 +155,13 @@ proc compareAll() =
     # returns V^T directly, so timing UniLinalg's V->V^T conversion alongside
     # it would unfairly inflate UniLinalg's measured time for the same result.
     vU = transpose(dU.v)
+    let at = toTensor2D(a)
+    var ut, st, vht: Tensor[float64]
     let amMs = timed:
-      let (ut, st, vht) = svd(toTensor2D(a), float64)
-      uA = fromTensor2D(ut)
-      sA = toSeq1D(st)
-      vA = fromTensor2D(vht)
+      (ut, st, vht) = svd(at, float64)
+    let uA = fromTensor2D(ut)
+    let sA = toSeq1D(st)
+    let vA = fromTensor2D(vht)
     var svalDiff = 0.0
     for i in 0 ..< n: svalDiff = max(svalDiff, abs(sU[i] - sA[i]))
     report("svd", n, uniMs, amMs, svdResidual(a, uU, sU, vU) < Tol,
@@ -174,3 +182,4 @@ when isMainModule:
     if a.startsWith("--csv:"): csvOut = a[6 .. ^1]
   compareAll()
   if csvOut.len > 0: writeCsv(csvOut)
+  if anyFailure: quit(1)

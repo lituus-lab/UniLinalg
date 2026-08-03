@@ -47,8 +47,8 @@ int main(void) {
   check_d("lu_solve: x[2]", x[2], 3.0, 1e-9);
 
   /* Same system: the plain solve above lands within 1e-9 but not bit-exact
-   * (1.0000000000000007, 2.0, 2.9999999999999996) -- refine=1 recovers the
-   * exactly-rounded answer (ADR-0006). */
+   * (1.0000000000000007, 2.0, 2.9999999999999996) -- refine=true recovers
+   * the exactly-rounded answer (ADR-0006). */
   double xr[3];
   int nr = ulin_matrix_lu_solve(a, b, 3, xr, 3, true);
   check_i("lu_solve refine: elements written", nr, 3);

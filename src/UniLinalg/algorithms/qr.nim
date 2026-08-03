@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 lituus-lab
 # UniLinalg — QR decomposition (Householder reflections)
 # =============================================================================
 #
@@ -12,7 +14,7 @@
 # Sign choice: v = x + sign(x_0)*|x|*e_0 — adding (never subtracting) the
 # norm avoids the classic cancellation when x is already nearly axial.
 
-import std/math
+import std/[math, fenv]
 import ../types/matrix
 import contracts
 import ./refine
@@ -122,11 +124,15 @@ func qrSolve*[T: SomeFloat](d: QrDecomposition[T], b: openArray[T]): seq[
       qtb[i] = acc
     # Rank-deficiency threshold relative to R's largest diagonal magnitude:
     # an exact-zero test misses near-singular systems that would otherwise
-    # divide by a near-zero pivot and silently blow up the result.
+    # divide by a near-zero pivot and silently blow up the result. Scaled by
+    # T's own machine epsilon (not a fixed 1e-12, which is *smaller* than
+    # float32's epsilon of ~1.19e-7 -- confirmed by direct measurement -- and
+    # would never trigger for T=float32) and by n, the standard LAPACK-style
+    # rank-test scaling (accumulated rounding grows with problem size).
     var maxDiag = T(0)
     for i in 0 ..< n:
       maxDiag = max(maxDiag, abs(d.r[i, i]))
-    let diagTol = T(1e-12) * maxDiag
+    let diagTol = T(n) * epsilon(T) * maxDiag
     # back substitution on the n x n top of R
     result = newSeq[T](n)
     for i in countdown(n - 1, 0):
