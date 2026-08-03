@@ -169,7 +169,7 @@ allocation.
 ulin_matrix ulin_matrix_create(int rows, int cols);
 void        ulin_matrix_destroy(ulin_matrix h);
 int         ulin_matrix_lu_solve(ulin_matrix h, const double *b, size_t blen,
-                                  double *out_buf, size_t out_cap);
+                                  double *out_buf, size_t out_cap, bool refine);
 
 typedef struct { double x, y, z; } ulin_vec3;
 ulin_vec3 ulin_vec3_cross(ulin_vec3 a, ulin_vec3 b);
