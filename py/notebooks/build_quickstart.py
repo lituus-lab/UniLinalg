@@ -41,6 +41,11 @@ below has the hand-checkable solution (1, 2, 3)."""),
                                 [2.0, 1.0, 3.0],
                                 [1.0, 1.0, 1.0]])
 a.solve([8.0, 13.0, 6.0])"""),
+    ("md", """The plain solve above is 1-2 ULP off (1, 2, 3) is exactly
+representable, but float64 Gaussian elimination doesn't land on it.
+`refine=True` runs one step of UniAccurate-backed iterative refinement and
+recovers the exactly-rounded answer here (ADR-0006)."""),
+    ("code", """a.solve([8.0, 13.0, 6.0], refine=True)"""),
     ("md", """A singular matrix is a domain error, not a silently wrong answer."""),
     ("code", """try:
     unilinalg.Matrix.from_rows([[1.0, 2.0], [2.0, 4.0]]).solve([1.0, 1.0])
@@ -78,7 +83,7 @@ contract is expressed by NULL/negative-count/error-code returns instead of
 raising -- an exception must never unwind across an ABI boundary:
 
 ```c
-ulin_matrix_lu_solve(h, b, blen, out, out_cap);  /* -1 on singular/shape error */
+ulin_matrix_lu_solve(h, b, blen, out, out_cap, false);  /* -1 on singular/shape error */
 ulin_matrix_cholesky(h);                         /* NULL if not SPD */
 ```
 

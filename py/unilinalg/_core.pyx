@@ -41,7 +41,7 @@ cdef extern from "UniLinalg.h":
     ulin_matrix ulin_matrix_transpose(ulin_matrix h)
     double ulin_matrix_determinant(ulin_matrix h, int *out_ok)
     int ulin_matrix_lu_solve(ulin_matrix h, const double *b, size_t blen,
-                              double *out_buf, size_t out_cap)
+                              double *out_buf, size_t out_cap, bint refine)
     ulin_matrix ulin_matrix_cholesky(ulin_matrix h)
     int ulin_matrix_qr(ulin_matrix h, ulin_matrix *out_q, ulin_matrix *out_r)
     int ulin_matrix_svd(ulin_matrix h, ulin_matrix *out_u,
@@ -122,11 +122,12 @@ cdef class _MatrixHandle:
         cdef double d = ulin_matrix_determinant(self._h, &ok)
         return (d, bool(ok))
 
-    def lu_solve(self, list b):
+    def lu_solve(self, list b, bint refine=False):
         cdef size_t n = len(b)
         cdef double[:] bv = _to_double_array(b)
         cdef double[:] outv = _to_double_array([0.0] * n)
-        cdef int written = ulin_matrix_lu_solve(self._h, &bv[0], n, &outv[0], n)
+        cdef int written = ulin_matrix_lu_solve(self._h, &bv[0], n, &outv[0], n,
+                                                 refine)
         if written < 0:
             return None
         return [outv[i] for i in range(written)]

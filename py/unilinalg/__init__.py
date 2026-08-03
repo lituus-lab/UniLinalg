@@ -109,14 +109,16 @@ class Matrix:
             raise ValueError("determinant requires a square matrix")
         return value
 
-    def solve(self, b):
+    def solve(self, b, refine=False):
         """Solves Ax = b. Raises ValueError on a non-square matrix, a shape
-        mismatch, or a singular matrix."""
+        mismatch, or a singular matrix. refine=True runs one step of
+        UniAccurate-backed iterative refinement after the solve, correcting
+        the 1-2 ULP a plain float64 solve can miss (ADR-0006)."""
         if not isinstance(b, (list, tuple)):
             raise TypeError(f"b must be a list, got {type(b).__name__}")
         if len(b) != self.rows:
             raise ValueError(f"b has length {len(b)}, expected {self.rows}")
-        result = self._h.lu_solve([float(v) for v in b])
+        result = self._h.lu_solve([float(v) for v in b], bool(refine))
         if result is None:
             raise ValueError("solve failed: non-square, shape mismatch, "
                               "or singular matrix")
