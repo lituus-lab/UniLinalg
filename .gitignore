@@ -1,0 +1,57 @@
+# build artifacts
+build/
+# Anchored: this is the build output dir, and unanchored `bin/` would also
+# swallow any nested bin/ a subdirectory legitimately tracks.
+/bin/
+libUniLinalg.so
+libUniLinalg.so.*
+libUniLinalg.dylib
+libUniLinalg.a
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.so.*
+*.dylib
+*.a
+*.lib
+
+# coverage
+coverage/
+lcov.info
+
+# nim cache
+nimcache/
+rnimcache/
+dnimcache/
+
+# docs output
+pages/
+docs/
+*.html
+nimdoc.out.css
+
+# python binding artifacts (sources tracked; generated + bundled lib not)
+py/unilinalg/_core.c
+py/unilinalg/*.so
+py/unilinalg/libUniLinalg.so
+py/dist/
+py/build/
+py/*.egg-info/
+py/**/__pycache__/
+py/.pytest_cache/
+py/_nimsrc/
+
+# c test/example binaries
+tests/c/test_unilinalg
+examples/c/demo
+
+# os / editor
+.DS_Store
+*~
+.*.swp
+*.dSYM
+
+*.log
+*.core
