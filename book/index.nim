@@ -75,6 +75,41 @@ nbText: """
 """
 
 nbText: """
+## Accurate refinement: recovering the last few ULP
+
+`solve` can miss the correctly-rounded answer by 1-2 ULP even on a
+well-scaled system -- nothing is wrong with the LU algorithm itself, this
+is ordinary float64 rounding. `useRefinement=true` runs one step of
+`UniAccurate`-backed iterative refinement after the solve, correcting it.
+"""
+
+nbCode:
+  let ra = matrix[float64](3, 3, [1.0, 2.0, 1.0,
+                                  2.0, 1.0, 3.0,
+                                  1.0, 1.0, 1.0])
+  let rb = [8.0, 13.0, 6.0]
+  echo "solve(a, b) = ", solve(ra, rb)
+  echo "solve(a, b, useRefinement=true) = ", solve(ra, rb, useRefinement = true)
+
+nbText: """
+The same option exists on `choleskySolve`'s companion `choleskyRefineOnce`
+and on `leastSquares` (Björck-style refinement for the overdetermined case,
+reusing the same QR factors rather than a straight copy of the square-case
+formula), and threads through `inverse`. Every one of these runs a single
+refinement step, not a convergence loop. Measured cost/accuracy trade-off
+at several matrix sizes:
+[bench/README.md](https://github.com/lituus-lab/UniLinalg/blob/main/bench/README.md).
+
+### References
+
+- Wikipedia: [Iterative refinement](https://en.wikipedia.org/wiki/Iterative_refinement) --
+  the technique `refine` implements (originally Wilkinson's).
+- Björck, Å. "Iterative refinement of linear least squares solutions I,"
+  *BIT Numerical Mathematics* 7, 257-278 (1967) -- the least-squares variant
+  `leastSquares`'s `refine` uses.
+"""
+
+nbText: """
 ## Vector: fixed-dimension geometric/physical vectors
 
 `Vector[D: static[int], T: RealField]` is a different shape of problem than
@@ -145,8 +180,18 @@ scope change. With both `std/math` and `UniMath` imported, unqualified
 `BigFloat`/`Rational`/`Fixed` to their own UniMath `sqrt` (each `export`ed
 through the umbrella). No `when` branch is needed -- the call site is
 identical for every `RealField` instance. `normalize()` calls `length()`,
-so it inherits the same path.
+so it inherits the same path. Proof, not just prose -- the same `length()`
+call compiles and runs against an exact `Rational` scalar, not only
+`float64`:
+"""
 
+nbCode:
+  import UniMath
+
+  let rv = vec2(initRational(3, 1), initRational(4, 1))
+  echo "vec2(3/1, 4/1).length = ", rv.length
+
+nbText: """
 The Matrix decompositions (LU/Cholesky/QR/SVD) deliberately keep
 `std/math.sqrt` -- they are mature, already-tested code relocated verbatim
 from `UniversalMath/UniLinalg` 1.0.0, and rewriting their internals to route
@@ -180,7 +225,9 @@ The C ABI never raises: buffer-writing operations (`lu_solve`, sparse
 (`qr`, `svd`) return a `ULIN_OK`/`ULIN_ERR_*` status code; single-value
 operations return `NULL`/`0.0` with an optional `*out_ok`. `tests/c` links
 the hand-written header against the compiled library on every run, so a
-renamed or retyped exported symbol fails to link there first.
+missing or renamed exported symbol fails to link there first; a retyped one
+still links (the linker matches names, not signatures) and is caught instead
+by `tests/c`'s own behavioral checks against known values.
 
 ## The Python surface
 
