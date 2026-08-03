@@ -93,11 +93,12 @@ int ulin_matrix_almost_equal(ulin_matrix a, ulin_matrix b, double eps);
  * out_ok may be NULL. */
 double ulin_matrix_determinant(ulin_matrix h, int *out_ok);
 
-/* Solves Ax = b, writing x into out_buf (out_cap must be >= rows). Returns
- * the number of elements written, or -1 on a nil handle/buffer, shape
- * mismatch, too-small buffer, or a singular matrix. */
+/* Solves Ax = b, writing x into out_buf (out_cap must be >= rows). `refine`
+ * true runs one step of UniAccurate-backed iterative refinement after the
+ * solve (ADR-0006). Returns the number of elements written, or -1 on a nil
+ * handle/buffer, shape mismatch, too-small buffer, or a singular matrix. */
 int ulin_matrix_lu_solve(ulin_matrix h, const double *b, size_t blen,
-                          double *out_buf, size_t out_cap);
+                          double *out_buf, size_t out_cap, bool refine);
 
 /* Lower-triangular L with A = L L^T. NULL on a nil handle, a non-square
  * matrix, or a matrix that is not symmetric positive-definite. */

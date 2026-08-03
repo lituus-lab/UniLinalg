@@ -14,7 +14,7 @@ int main(void) {
       ulin_matrix_set(a, i, j, avals[i*3+j]);
   double b[3] = {8.0, 13.0, 6.0};
   double x[3];
-  ulin_matrix_lu_solve(a, b, 3, x, 3);
+  ulin_matrix_lu_solve(a, b, 3, x, 3, false);
   printf("solve(a, b) = [%g, %g, %g]\n", x[0], x[1], x[2]);
   ulin_matrix_destroy(a);
 
