@@ -197,16 +197,19 @@ proc ulin_matrix_determinant(h: pointer, out_ok: ptr cint): float64 =
   det(m)
 
 proc ulin_matrix_lu_solve(h: pointer, b: ptr float64, blen: csize_t,
-                          outBuf: ptr float64, outCap: csize_t): cint =
-  ## Solves Ax = b, writing x into outBuf (outCap must be >= rows). Returns
-  ## the number of elements written, or -1 on a nil handle/buffer, shape
-  ## mismatch, too-small buffer, or a singular matrix.
+                          outBuf: ptr float64, outCap: csize_t,
+                          refine: bool): cint =
+  ## Solves Ax = b, writing x into outBuf (outCap must be >= rows). `refine`
+  ## true runs one step of UniAccurate-backed iterative refinement after the
+  ## solve, correcting the 1-2 ULP a plain float64 solve can miss (ADR-0006).
+  ## Returns the number of elements written, or -1 on a nil handle/buffer,
+  ## shape mismatch, too-small buffer, or a singular matrix.
   if h == nil or b == nil or outBuf == nil: return cint(-1)
   let m = matOf(h)
   if not m.isSquare or int(blen) != m.rows: return cint(-1)
   if int(outCap) < m.rows: return cint(-1)
   let x =
-    try: solve(m, ptrToSeq(b, blen))
+    try: solve(m, ptrToSeq(b, blen), refine = refine)
     except ValueError: return cint(-1)
   seqToBuf(x, outBuf)
   cint(x.len)

@@ -40,11 +40,21 @@ int main(void) {
       ulin_matrix_set(a, i, j, avals[i*3+j]);
   double b[3] = {8.0, 13.0, 6.0};
   double x[3];
-  int n = ulin_matrix_lu_solve(a, b, 3, x, 3);
+  int n = ulin_matrix_lu_solve(a, b, 3, x, 3, false);
   check_i("lu_solve: elements written", n, 3);
   check_d("lu_solve: x[0]", x[0], 1.0, 1e-9);
   check_d("lu_solve: x[1]", x[1], 2.0, 1e-9);
   check_d("lu_solve: x[2]", x[2], 3.0, 1e-9);
+
+  /* Same system: the plain solve above lands within 1e-9 but not bit-exact
+   * (1.0000000000000007, 2.0, 2.9999999999999996) -- refine=1 recovers the
+   * exactly-rounded answer (ADR-0006). */
+  double xr[3];
+  int nr = ulin_matrix_lu_solve(a, b, 3, xr, 3, true);
+  check_i("lu_solve refine: elements written", nr, 3);
+  check_d("lu_solve refine: x[0]", xr[0], 1.0, 0.0);
+  check_d("lu_solve refine: x[1]", xr[1], 2.0, 0.0);
+  check_d("lu_solve refine: x[2]", xr[2], 3.0, 0.0);
 
   /* Determinant: known value -2.0 for [[1,2],[3,4]]. */
   ulin_matrix d2 = ulin_matrix_create(2, 2);
