@@ -67,6 +67,12 @@ proc benchAll() =
     record("lu_solve", n, ms)
 
   for n in [16, 32, 64, 128, 256]:
+    let a = randMatrix(n, 14)
+    let b = randVec(n, 15)
+    let ms = timed: discard solve(a, b, refine = true)
+    record("lu_solve_refine", n, ms)
+
+  for n in [16, 32, 64, 128, 256]:
     let a = randSpdMatrix(n, 16)
     let ms = timed: discard cholesky(a)
     record("cholesky", n, ms)
@@ -80,6 +86,30 @@ proc benchAll() =
     let a = randMatrix(n, 18)
     let ms = timed: discard svdDecompose(a)
     record("svd (one-sided Jacobi)", n, ms)
+
+# --------------------------------------------------------------------------
+# Precision parity: solve() vs solve(refine=true) -- see ADR-0006
+# --------------------------------------------------------------------------
+
+proc maxResidual(a: Matrix[float64], b, x: seq[float64]): float64 =
+  result = 0.0
+  for v in residual(a, b, x):
+    if abs(v) > result: result = abs(v)
+
+proc benchRefineParity() =
+  echo ""
+  echo "Precision parity: solve() vs solve(refine=true)"
+  echo repeat('-', 70)
+  for n in [16, 32, 64, 128]:
+    let a = randMatrix(n, 14)
+    let b = randVec(n, 15)
+    let sv = svdDecompose(a)
+    let cond2 = sv.s[0] / sv.s[sv.s.len - 1]
+    let plain = solve(a, b)
+    let refined = solve(a, b, refine = true)
+    echo &"  n={n:>4}  cond2={cond2:>10.2f}  " &
+        &"max|residual| plain={maxResidual(a, b, plain):.3e}  " &
+        &"refined={maxResidual(a, b, refined):.3e}"
 
 # --------------------------------------------------------------------------
 # CSV + regression gate
@@ -121,6 +151,7 @@ when isMainModule:
     elif a.startsWith("--baseline:"): baseline = a[11 .. ^1]
     elif a.startsWith("--threshold:"): threshold = parseFloat(a[12 .. ^1])
   benchAll()
+  benchRefineParity()
   if csvOut.len > 0: writeCsv(csvOut)
   if baseline.len > 0:
     if compareBaseline(baseline, threshold) > 0: quit(1)
