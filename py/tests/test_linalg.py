@@ -57,6 +57,17 @@ def test_solve_known_3x3_system():
     assert math.isclose(x[2], 3.0, abs_tol=1e-9)
 
 
+def test_solve_refine_recovers_exact_answer():
+    # Same system as test_solve_known_3x3_system: the plain solve lands
+    # within 1e-9 but not bit-exact -- refine=True recovers (1, 2, 3)
+    # exactly here (ADR-0006).
+    a = unilinalg.Matrix.from_rows([[1.0, 2.0, 1.0],
+                                    [2.0, 1.0, 3.0],
+                                    [1.0, 1.0, 1.0]])
+    x = a.solve([8.0, 13.0, 6.0], refine=True)
+    assert x == [1.0, 2.0, 3.0]
+
+
 def test_solve_singular_raises():
     s = unilinalg.Matrix.from_rows([[1.0, 2.0], [2.0, 4.0]])
     with pytest.raises(ValueError):
