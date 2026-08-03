@@ -1,17 +1,11 @@
-# UniLinalg: Contract infrastructure tests (Phase 7)
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 lituus-lab
+# UniLinalg: Contract infrastructure tests
 # ===================================================
 #
-# Two purposes (mirroring the canonical UniRational suite):
-# 1. Prove the NimContracts machinery is wired into this package's build:
-#    a deliberately-broken postcondition raises `PostConditionDefect` in debug,
-#    and a correct one passes. This is the "loop d'auto-contrôle" the plan
-#    requires — the contract layer is alive and would catch a regression.
-# 2. Smoke-check the structural postconditions the contracts assert on real
-#    inputs: LU shape/sign, solve length, and Cholesky lower-triangularity.
-#
-# Gated to debug only (`when not defined(release) and not defined(danger)`):
-# in release/danger the contracts are compiled away (zero overhead, no
-# raises), so a violation test has nothing to observe there.
+# Verifies NimContracts require:/ensure: preconditions and postconditions in
+# debug builds; compiled away under release/danger, so nothing to observe
+# there.
 
 import std/unittest
 import contracts
@@ -118,7 +112,57 @@ when not defined(release) and not defined(danger):
     test "rank: result bounded in [0, cols]":
       let a = matrix[float64](3, 2, [1.0, 0.0, 0.0, 1.0, 1.0, 1.0])
       let r = rank(a)
-      check r >= 0 and r <= 2
+      check r == 2 # full column rank -- also satisfies the ensure: 0 <= r <= 2
+
+  suite "Matrix: shape/index preconditions":
+    test "initMatrix: rejects non-positive rows/cols":
+      expect PreConditionDefect:
+        discard initMatrix[float64](0, 3)
+      expect PreConditionDefect:
+        discard initMatrix[float64](3, -1)
+      check initMatrix[float64](2, 2).rows == 2 # valid case unaffected
+
+    test "matrix: rejects an element count that doesn't match rows*cols":
+      expect PreConditionDefect:
+        discard matrix[float64](2, 2, [1.0, 2.0, 3.0])
+      check matrix[float64](2, 2, [1.0, 2.0, 3.0, 4.0]).rows == 2
+
+    test "matrix: rejects zero-sized dimensions even with a matching (empty) element list":
+      expect PreConditionDefect:
+        discard matrix[float64](0, 0, [])
+
+    test "[] / []=: reject an out-of-range index":
+      var m = matrix[float64](2, 2, [1.0, 2.0, 3.0, 4.0])
+      expect PreConditionDefect:
+        discard m[2, 0]
+      expect PreConditionDefect:
+        discard m[0, -1]
+      expect PreConditionDefect:
+        m[2, 0] = 9.0
+      m[1, 1] = 9.0 # valid case unaffected
+      check m[1, 1] == 9.0
+
+    test "+ / -: reject mismatched shapes":
+      let a = matrix[float64](2, 2, [1.0, 2.0, 3.0, 4.0])
+      let b = matrix[float64](2, 3, [0.0, 0.0, 0.0, 0.0, 0.0, 0.0])
+      expect PreConditionDefect:
+        discard a + b
+      expect PreConditionDefect:
+        discard a - b
+      check (a + a).rows == 2 # valid case unaffected
+
+    test "matrix * matrix: rejects a.cols != b.rows":
+      let a = matrix[float64](2, 3, [1.0, 0.0, 0.0, 0.0, 1.0, 0.0])
+      let b = matrix[float64](2, 2, [1.0, 0.0, 0.0, 1.0])
+      expect PreConditionDefect:
+        discard a * b
+      check (a * matrix[float64](3, 2, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0])).rows == 2
+
+    test "matrix * vector: rejects a length mismatch":
+      let a = matrix[float64](2, 3, [1.0, 0.0, 0.0, 0.0, 1.0, 0.0])
+      expect PreConditionDefect:
+        discard a * [1.0, 1.0]
+      check (a * [1.0, 1.0, 1.0]).len == 2
 
 else:
   suite "contracts compiled away in release/danger":

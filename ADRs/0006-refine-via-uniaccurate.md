@@ -5,8 +5,10 @@
 - Status: Accepted
 - Date: 2026-08-03
 - Scope: `algorithms/refine.nim` (the shared `residual`), `lu.nim`
-  (`refineOnce`, `solve`'s and `inverse`'s `refine` parameter), and the
-  equivalent C ABI / Python surface for `solve`
+  (`refineOnce`, `solve`'s and `inverse`'s `refine` parameter),
+  `cholesky.nim` (`choleskyRefineOnce`), `qr.nim` (`qrSolve`,
+  `qrRefineOnce`, `leastSquares`'s `refine` parameter), and the equivalent
+  C ABI / Python surface for `solve` only (see "Generalizing beyond LU")
 
 ## Context
 
@@ -89,12 +91,18 @@ Van Loan — no source was copied from another codebase.
 
 ## Consequences
 
-- One refinement step is O(n^2): reuses the O(n^3) factorization, so it is
-  cheap relative to a fresh `solve` and gets relatively cheaper as `n`
-  grows. Measured at n=64 (random matrix, `cond2 ~ 246.5`): baseline
-  `solve()` ~92.3us, `refineOnce` ~35.2us (0.38x baseline) for a ~20x
-  reduction in max residual (9.7e-15 -> 4.8e-16). See `bench/README.md` for
-  the reproducible numbers.
+- One refinement step reuses the already-computed factorization rather than
+  re-decomposing, so it is cheap relative to a fresh `solve` and gets
+  relatively cheaper as the system grows. For the square case (LU,
+  Cholesky) this is O(n^2) against an O(n^3) factorization. `residual`
+  itself is O(rows * cols): for the general QR least-squares case
+  (`m > n`) that is O(mn), not O(n^2) -- still cheap next to
+  `qrDecompose`'s own O(m^2 n) (dominated by accumulating the full m x m
+  `Q`), just not the same bound as the square case. Measured at n=64
+  (square, random matrix, `cond2 ~ 246.5`): baseline `solve()` ~92.3us,
+  `refineOnce` ~35.2us (0.38x baseline) for a ~20x reduction in max
+  residual (9.7e-15 -> 4.8e-16). See `bench/README.md` for the reproducible
+  numbers.
 - `refine`/`refineOnce`/`qrRefineOnce`/`choleskyRefineOnce` only ever run
   one step. A caller needing full convergence on a badly conditioned
   system calls the `*RefineOnce` proc again on the result; none of the

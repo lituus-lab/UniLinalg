@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 lituus-lab
 # UniLinalg — LU decomposition with partial pivoting
 # =============================================================================
 #
@@ -141,15 +143,18 @@ func refineOnce*[T: SomeFloat](a: Matrix[T], d: LuDecomposition[T],
       result[i] = x[i] + dx[i]
 
 func solve*[T: SomeFloat](a: Matrix[T], b: openArray[T],
-    refine: bool = false): seq[T] {.contractual.} =
+    useRefinement: bool = false): seq[T] {.contractual.} =
   ## One-shot Ax = b. Decomposes then solves; reuse luDecompose when
   ## solving several right-hand sides against the same matrix.
   ##
-  ## `refine` (default false): run one step of UniAccurate-backed iterative
-  ## refinement after the LU solve. Plain float64/float32 solves can miss
-  ## the correctly-rounded answer by 1-2 ULP when the true residual falls
-  ## below the right-hand side's own rounding resolution; refinement
-  ## recovers it at `residual`'s O(n^2) cost. See ADR-0006.
+  ## `useRefinement` (default false): run one step of UniAccurate-backed
+  ## iterative refinement after the LU solve. Plain float64/float32 solves
+  ## can miss the correctly-rounded answer by 1-2 ULP when the true residual
+  ## falls below the right-hand side's own rounding resolution; refinement
+  ## recovers it at `residual`'s O(n^2) cost. See ADR-0006. (Named
+  ## `useRefinement`, not `refine`, so it doesn't shadow the imported/
+  ## re-exported `refine` module inside this proc's body -- `refine.residual`
+  ## stays reachable qualified.)
   ##
   ## Precondition: `a` is square and `b` matches its size. Postcondition:
   ## the solution has one entry per row of `a`.
@@ -159,7 +164,7 @@ func solve*[T: SomeFloat](a: Matrix[T], b: openArray[T],
   body:
     let d = luDecompose(a)
     result = luSolve(d, b)
-    if refine:
+    if useRefinement:
       result = refineOnce(a, d, b, result)
 
 func det*[T: SomeFloat](a: Matrix[T]): T {.contractual.} =
@@ -183,14 +188,15 @@ func det*[T: SomeFloat](a: Matrix[T]): T {.contractual.} =
     for i in 0 ..< a.rows:
       result = result * d.lu[i, i]
 
-func inverse*[T: SomeFloat](a: Matrix[T], refine: bool = false): Matrix[
+func inverse*[T: SomeFloat](a: Matrix[T], useRefinement: bool = false): Matrix[
     T] {.contractual.} =
   ## Inverse through n solves against the identity columns.
   ## Prefer solve() when you only need A^-1 * b — it is cheaper and more
   ## accurate than forming the inverse explicitly.
   ##
-  ## `refine` (default false): apply one `refineOnce` correction to every
-  ## column solve (same reasoning as `solve`'s own `refine`; see ADR-0006).
+  ## `useRefinement` (default false): apply one `refineOnce` correction to
+  ## every column solve (same reasoning as `solve`'s own `useRefinement`; see
+  ## ADR-0006).
   ##
   ## Precondition: `a` is square (debug-only `require:`). Postcondition: the
   ## inverse has the same shape as `a` (structural, uses only the non-contracted
@@ -209,7 +215,7 @@ func inverse*[T: SomeFloat](a: Matrix[T], refine: bool = false): Matrix[
       for i in 0 ..< n: e[i] = T(0)
       e[j] = T(1)
       var col = luSolve(d, e)
-      if refine:
+      if useRefinement:
         col = refineOnce(a, d, e, col)
       for i in 0 ..< n:
         result[i, j] = col[i]

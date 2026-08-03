@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 lituus-lab
 # UniLinalg — Tolerance helpers (trimmed from a geometry library's own
 # tolerance module)
 # =============================================================================

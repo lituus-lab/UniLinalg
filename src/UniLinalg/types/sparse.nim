@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 lituus-lab
 # UniLinalg — Sparse matrices (CSR: Compressed Sparse Row)
 # =============================================================================
 #
@@ -20,13 +22,58 @@ import contracts
 type
   CsrMatrix*[T] = object
     rows*, cols*: int
-    vals*: seq[T]
-    colIdx*: seq[int]
-    rowPtr*: seq[int]
+    vals: seq[T]
+    colIdx: seq[int]
+    rowPtr: seq[int]
+
+func vals*[T](m: CsrMatrix[T]): lent seq[T] {.inline.} = m.vals
+func colIdx*[T](m: CsrMatrix[T]): lent seq[int] {.inline.} = m.colIdx
+func rowPtr*[T](m: CsrMatrix[T]): lent seq[int] {.inline.} = m.rowPtr
 
 func nnz*[T](m: CsrMatrix[T]): int {.inline.} =
   ## Number of stored (non-zero) entries.
   m.vals.len
+
+func initCsrMatrix*[T](rows, cols: int, vals: seq[T], colIdx: seq[int],
+                        rowPtr: seq[int]): CsrMatrix[T] {.contractual.} =
+  ## CSR matrix from raw components. `vals`/`colIdx`/`rowPtr` are private
+  ## fields (see above) -- this is the only way outside this module to
+  ## build one directly (`toCsr` is the other, always well-formed by
+  ## construction from a dense Matrix).
+  ##
+  ## Precondition (`require:`, debug-only): rows/cols positive -- pure
+  ## shape, no indexing risk by itself. Every other check (rowPtr's length,
+  ## vals'/colIdx' shared length, rowPtr's endpoints, non-decreasing order,
+  ## column bounds) lives in `body:` instead: a `require:` compiles away
+  ## under -d:danger, and the row loop below indexes `rowPtr[i]`/
+  ## `rowPtr[i + 1]` directly -- a wrong-length rowPtr would be a genuine
+  ## out-of-bounds read under that build flag, not just a wrong result
+  ## (the same distinction cholesky's symmetry/SPD checks make).
+  require:
+    rows > 0 and cols > 0
+  body:
+    if rowPtr.len != rows + 1:
+      raise newException(ValueError, "CsrMatrix: rowPtr.len (" &
+        $rowPtr.len & ") != rows+1 (" & $(rows + 1) & ")")
+    if vals.len != colIdx.len:
+      raise newException(ValueError, "CsrMatrix: vals.len (" & $vals.len &
+        ") != colIdx.len (" & $colIdx.len & ")")
+    if rowPtr[0] != 0:
+      raise newException(ValueError,
+        "CsrMatrix: rowPtr[0] must be 0, got " & $rowPtr[0])
+    if rowPtr[^1] != vals.len:
+      raise newException(ValueError, "CsrMatrix: rowPtr[^1] (" &
+        $rowPtr[^1] & ") != vals.len (" & $vals.len & ")")
+    for i in 0 ..< rows:
+      if rowPtr[i] > rowPtr[i + 1]:
+        raise newException(ValueError,
+          "CsrMatrix: rowPtr is not non-decreasing at row " & $i)
+    for c in colIdx:
+      if c < 0 or c >= cols:
+        raise newException(ValueError,
+          "CsrMatrix: column index " & $c & " out of [0, " & $cols & ")")
+    CsrMatrix[T](rows: rows, cols: cols, vals: vals, colIdx: colIdx,
+                 rowPtr: rowPtr)
 
 func toCsr*[T](dense: Matrix[T]): CsrMatrix[T] =
   ## Compress a dense matrix (exact zeros are dropped).
@@ -49,12 +96,14 @@ func toDense*[T](m: CsrMatrix[T]): Matrix[T] =
     for k in m.rowPtr[i] ..< m.rowPtr[i + 1]:
       result[i, m.colIdx[k]] = m.vals[k]
 
-func `[]`*[T](m: CsrMatrix[T], i, j: int): T =
+func `[]`*[T](m: CsrMatrix[T], i, j: int): T {.contractual.} =
   ## Element access by row scan (rows are short in practice).
-  for k in m.rowPtr[i] ..< m.rowPtr[i + 1]:
-    if m.colIdx[k] == j:
-      return m.vals[k]
-  T(0)
+  require: i >= 0 and i < m.rows
+  body:
+    for k in m.rowPtr[i] ..< m.rowPtr[i + 1]:
+      if m.colIdx[k] == j:
+        return m.vals[k]
+    T(0)
 
 func `*`*[T](m: CsrMatrix[T], v: openArray[T]): seq[T] {.contractual.} =
   ## Sparse matrix-vector product — THE operation CSR is built for: O(nnz).

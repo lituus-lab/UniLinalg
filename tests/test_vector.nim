@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 lituus-lab
 # UniLinalg — Vector[D,T] test suite
 # =============================================================================
 
@@ -90,6 +92,11 @@ suite "Vector - length and normalization":
   test "normalize of the zero vector returns the zero vector":
     let z = zeroVector[2, float64]()
     check z.normalize == z
+
+  test "normalize propagates NaN instead of masking it as the zero vector":
+    let v = vec2(NaN, 1.0)
+    let n = v.normalize
+    check n.x != n.x # NaN != NaN, unlike an actual zero vector
 
   test "float32 length is exact for a 3-4-5 triangle":
     let v = vec2(3.0'f32, 4.0'f32)

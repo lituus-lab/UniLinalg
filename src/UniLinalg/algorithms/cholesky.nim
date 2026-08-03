@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 lituus-lab
 # UniLinalg — Cholesky decomposition (symmetric positive-definite)
 # =============================================================================
 #
@@ -32,13 +34,13 @@ func isLowerTriangular*[T](m: Matrix[T]): bool {.inline.} =
 
 func cholesky*[T: SomeFloat](a: Matrix[T]): Matrix[T] {.contractual.} =
   ## Returns the lower-triangular L with A = L * L^T.
-  ## Raises ValueError if A is not symmetric positive-definite.
-  ## Symmetry is trusted from the lower triangle (the upper one is ignored).
+  ## Raises ValueError if A is not symmetric, or not positive-definite.
   ##
   ## Precondition: `a` is square. Postcondition (on normal return — the
-  ## not-SPD `raise` skips the ensure): `result` is square, matches `a`'s
-  ## shape, and is lower-triangular. (The A = L·L^T reconstruction is
-  ## exercised against an oracle in `tests/`, not asserted here.)
+  ## not-symmetric/not-SPD `raise`s skip the ensure): `result` is square,
+  ## matches `a`'s shape, and is lower-triangular. (The A = L·L^T
+  ## reconstruction is exercised against an oracle in `tests/`, not
+  ## asserted here.)
   require: a.isSquare
   ensure:
     result.isSquare
@@ -46,6 +48,17 @@ func cholesky*[T: SomeFloat](a: Matrix[T]): Matrix[T] {.contractual.} =
     result.isLowerTriangular
   body:
     let n = a.rows
+    # Symmetry is a domain precondition, not a shape one -- checked here
+    # (not via `require:`) so it still holds under -d:danger, matching the
+    # not-SPD guard below: a silently-accepted asymmetric input would
+    # factor only its lower triangle and return a plausible-looking but
+    # wrong L for a different matrix than the one passed in.
+    for i in 0 ..< n:
+      for j in 0 ..< i:
+        if a[i, j] != a[j, i]:
+          raise newException(ValueError,
+            "cholesky: matrix is not symmetric (a[" & $i & "," & $j &
+            "] != a[" & $j & "," & $i & "])")
     result = initMatrix[T](n, n)
     for j in 0 ..< n:
       # diagonal entry: l_jj = sqrt(a_jj - sum_k l_jk^2). jRow/iRow are the
@@ -83,11 +96,16 @@ func choleskySolve*[T: SomeFloat](l: Matrix[T], b: openArray[T]): seq[
   body:
     let n = l.rows
     result = newSeq[T](n)
-    # forward: Lz = b
+    # forward: Lz = b. Checks every diagonal once, in order -- the backward
+    # loop below reuses the same n diagonals, already known nonzero by then,
+    # so it does not need its own check.
     for i in 0 ..< n:
       var acc = b[i]
       for j in 0 ..< i:
         acc = acc - l[i, j] * result[j]
+      if l[i, i] == T(0):
+        raise newException(ValueError, "choleskySolve: zero diagonal entry " &
+          "at " & $i & " (not a valid Cholesky factor)")
       result[i] = acc / l[i, i]
     # backward: L^T x = z  (walk L by columns to avoid materializing L^T)
     for i in countdown(n - 1, 0):

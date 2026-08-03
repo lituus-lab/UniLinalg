@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright 2026 lituus-lab
 # UniLinalg — exact residual for iterative refinement
 # =============================================================================
 #
@@ -32,3 +34,5 @@ func residual*[T: SomeFloat](a: Matrix[T], b, x: openArray[T]): seq[
       for j in 0 ..< a.cols:
         acc.addProduct(a[i, j], x[j])
       result[i] = -round(acc)
+
+
