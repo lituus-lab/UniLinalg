@@ -4,8 +4,9 @@
 
 - Status: Accepted
 - Date: 2026-08-03
-- Scope: `algorithms/lu.nim` (`residual`, `refineOnce`, `solve`'s `refine`
-  parameter), and the equivalent C ABI / Python surface
+- Scope: `algorithms/refine.nim` (the shared `residual`), `lu.nim`
+  (`refineOnce`, `solve`'s and `inverse`'s `refine` parameter), and the
+  equivalent C ABI / Python surface for `solve`
 
 ## Context
 
@@ -48,6 +49,44 @@ was not measured here. `solve`'s `T: SomeFloat` constraint keeps these
 usable only by a caller who writes their own generic solve; adopting one as
 the default would fight the "pedagogical, dependency-free" scope (README).
 
+## Generalizing beyond LU
+
+`residual` needs only the original `a`, `b`, and a candidate `x` — nothing
+LU-specific — so it moved out of `lu.nim` into its own `algorithms/
+refine.nim`, generalized to `a`'s actual shape (`b.len == a.rows`,
+`x.len == a.cols`) rather than assuming square, and is now shared by three
+decompositions:
+
+- **Cholesky**: `choleskyRefineOnce(a, l, b, x)` is the direct analogue of
+  `refineOnce` — same square `Ax=b` structure, same technique, verified:
+  on `A=[[4,2],[2,3]], b=[1,1]`, `choleskySolve` returns
+  `(0.125, 0.24999999999999997)`; one refinement step recovers
+  `(0.125, 0.25)` exactly.
+- **`inverse`**: built from `n` `luSolve` calls against identity columns;
+  gained the same `refine: bool = false` parameter, applying `refineOnce`
+  to each column. Verified on a random 40x40 matrix: `max|A*A^-1 - I|`
+  dropped from `5.6e-15` to `1.6e-15`.
+- **QR / `leastSquares`** (overdetermined, m > n): this is Björck's
+  classical iterative refinement for least squares, not a copy-paste of
+  the square case — `leastSquares` was split into `qrDecompose` +
+  `qrSolve(d, b)` so the correction can reuse the *same* Q, R (A's
+  decomposition doesn't depend on the right-hand side). `qrRefineOnce(a,
+  d, b, x)` solves `min ‖A dx - r‖` via `qrSolve(d, residual(a, b, x))`.
+  Verified on an exactly-consistent random 30x6 system (any residual here
+  is pure float64 rounding, not model noise): max residual dropped from
+  `3.8e-15` to `7.1e-16`.
+- **SVD**: no analogue — this repo exposes no `svdSolve`; `svdDecompose`/
+  `rank` don't solve `Ax=b`, so there is nothing here to refine.
+- **`det`**: a different accuracy concern (compensated product
+  accumulation to avoid round-off in a running product), not iterative
+  refinement of a solve — not attempted here.
+
+Every new formula above (the Cholesky forward/back-substitution reuse, the
+QR-factor-reuse least-squares correction) is derived from the published
+algorithm and written fresh against this repo's existing types, the same
+way `lu.nim`/`cholesky.nim`/`qr.nim` were originally written from Golub &
+Van Loan — no source was copied from another codebase.
+
 ## Consequences
 
 - One refinement step is O(n^2): reuses the O(n^3) factorization, so it is
@@ -56,10 +95,12 @@ the default would fight the "pedagogical, dependency-free" scope (README).
   `solve()` ~92.3us, `refineOnce` ~35.2us (0.38x baseline) for a ~20x
   reduction in max residual (9.7e-15 -> 4.8e-16). See `bench/README.md` for
   the reproducible numbers.
-- `refine` only ever runs one step. A caller needing full convergence on a
-  badly conditioned system calls `refineOnce` again on the result; `solve`
-  does not loop internally (no convergence criterion to pick a default
-  for, no risk of a silent infinite loop on a matrix refinement cannot
-  help).
+- `refine`/`refineOnce`/`qrRefineOnce`/`choleskyRefineOnce` only ever run
+  one step. A caller needing full convergence on a badly conditioned
+  system calls the `*RefineOnce` proc again on the result; none of the
+  one-shot wrappers (`solve`, `inverse`, `leastSquares`) loop internally
+  (no convergence criterion to pick a default for, no risk of a silent
+  infinite loop on a matrix refinement cannot help).
 - The C ABI (`ulin_matrix_lu_solve`) and Python (`Matrix.solve`) expose the
-  same `refine` flag, defaulted off, for parity (ADR-0003).
+  same `refine` flag, defaulted off, for parity (ADR-0003). Cholesky/QR/
+  `inverse` refinement is Nim-only for now — no C ABI/Python surface yet.

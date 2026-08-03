@@ -25,8 +25,9 @@
 # References: Golub & Van Loan §3.2 (LU with partial pivoting).
 
 import contracts
-import UniMath
 import ../types/matrix
+import ./refine
+export refine
 
 type
   LuDecomposition*[T] = object
@@ -122,29 +123,6 @@ func luSolve*[T: SomeFloat](d: LuDecomposition[T], b: openArray[T]): seq[
       result[i] = acc / d.lu[i, i]
     result
 
-func residual*[T: SomeFloat](a: Matrix[T], b, x: openArray[T]): seq[
-    T] {.contractual.} =
-  ## Exact `b - Ax` via UniAccurate's `SuperAccumulator`: `-b[i]` and every
-  ## `a[i,j]*x[j]` product accumulate into the same exact accumulator before
-  ## a single rounding. Rounding a compensated dot product to `T` first and
-  ## only then subtracting `b[i]` in plain arithmetic instead throws away
-  ## exactly the bit `refineOnce` below needs, whenever the true residual is
-  ## smaller than `b[i]`'s own ULP -- verified: that alternative makes
-  ## `refineOnce` a no-op on the book's own LU example. See ADR-0006.
-  require: a.isSquare and b.len == a.rows and x.len == a.rows
-  ensure:
-    result.len == a.rows
-  body:
-    let n = a.rows
-    result = newSeq[T](n)
-    for i in 0 ..< n:
-      var acc: SuperAccumulator[T]
-      initSuperAccumulator(acc)
-      acc.add(-b[i])
-      for j in 0 ..< n:
-        acc.addProduct(a[i, j], x[j])
-      result[i] = -round(acc)
-
 func refineOnce*[T: SomeFloat](a: Matrix[T], d: LuDecomposition[T],
     b, x: openArray[T]): seq[T] {.contractual.} =
   ## One step of iterative refinement: corrects an approximate solution `x`
@@ -205,10 +183,14 @@ func det*[T: SomeFloat](a: Matrix[T]): T {.contractual.} =
     for i in 0 ..< a.rows:
       result = result * d.lu[i, i]
 
-func inverse*[T: SomeFloat](a: Matrix[T]): Matrix[T] {.contractual.} =
+func inverse*[T: SomeFloat](a: Matrix[T], refine: bool = false): Matrix[
+    T] {.contractual.} =
   ## Inverse through n solves against the identity columns.
   ## Prefer solve() when you only need A^-1 * b — it is cheaper and more
   ## accurate than forming the inverse explicitly.
+  ##
+  ## `refine` (default false): apply one `refineOnce` correction to every
+  ## column solve (same reasoning as `solve`'s own `refine`; see ADR-0006).
   ##
   ## Precondition: `a` is square (debug-only `require:`). Postcondition: the
   ## inverse has the same shape as `a` (structural, uses only the non-contracted
@@ -226,7 +208,9 @@ func inverse*[T: SomeFloat](a: Matrix[T]): Matrix[T] {.contractual.} =
     for j in 0 ..< n:
       for i in 0 ..< n: e[i] = T(0)
       e[j] = T(1)
-      let col = luSolve(d, e)
+      var col = luSolve(d, e)
+      if refine:
+        col = refineOnce(a, d, e, col)
       for i in 0 ..< n:
         result[i, j] = col[i]
 

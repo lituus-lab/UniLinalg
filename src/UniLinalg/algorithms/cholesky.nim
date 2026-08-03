@@ -19,6 +19,8 @@
 import contracts
 import std/math
 import ../types/matrix
+import ./refine
+export refine
 
 func isLowerTriangular*[T](m: Matrix[T]): bool {.inline.} =
   ## True iff `m[i, j] == 0` for all `j > i` (strict upper triangle is zero).
@@ -94,6 +96,23 @@ func choleskySolve*[T: SomeFloat](l: Matrix[T], b: openArray[T]): seq[
         acc = acc - l[j, i] * result[j]
       result[i] = acc / l[i, i]
     result
+
+func choleskyRefineOnce*[T: SomeFloat](a, l: Matrix[T],
+    b, x: openArray[T]): seq[T] {.contractual.} =
+  ## One step of iterative refinement on a choleskySolve() result, reusing
+  ## the exact `residual()` (needs the original `a`, not just the factor
+  ## `l`) and the already-computed Cholesky factor -- same technique and
+  ## same reasoning as LU's `refineOnce`. O(n^2), reuses the O(n^3)
+  ## factorization. See ADR-0006.
+  require: a.isSquare and l.isSquare and b.len == a.rows and x.len == a.rows
+  ensure:
+    result.len == a.rows
+  body:
+    let r = residual(a, b, x)
+    let dx = choleskySolve(l, r)
+    result = newSeq[T](a.rows)
+    for i in 0 ..< a.rows:
+      result[i] = x[i] + dx[i]
 
 func isPositiveDefinite*[T: SomeFloat](a: Matrix[T]): bool =
   ## SPD test by attempted factorization — the cheapest reliable check.

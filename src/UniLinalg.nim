@@ -12,11 +12,12 @@ import ./UniLinalg/types/matrix
 import ./UniLinalg/types/sparse
 import ./UniLinalg/types/vector
 import ./UniLinalg/types/tolerance
+import ./UniLinalg/algorithms/refine
 import ./UniLinalg/algorithms/lu
 import ./UniLinalg/algorithms/cholesky
 import ./UniLinalg/algorithms/qr
 import ./UniLinalg/algorithms/svd
 
-export matrix, sparse, vector, tolerance, lu, cholesky, qr, svd
+export matrix, sparse, vector, tolerance, refine, lu, cholesky, qr, svd
 
 const UniLinalgVersion* = "0.1.0"
