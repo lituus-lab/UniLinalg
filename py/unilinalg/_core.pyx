@@ -4,6 +4,8 @@
 """Raw Cython bindings over the UniLinalg C ABI (no domain checks).
 Use the `unilinalg` package (this module's __init__.py) instead."""
 from libc.stddef cimport size_t
+from libc.stdlib cimport malloc, free
+from cpython cimport array
 
 cdef extern from "UniLinalg.h":
     ctypedef void *ulin_matrix
@@ -46,6 +48,9 @@ cdef extern from "UniLinalg.h":
     int ulin_matrix_qr(ulin_matrix h, ulin_matrix *out_q, ulin_matrix *out_r)
     int ulin_matrix_svd(ulin_matrix h, ulin_matrix *out_u,
                          double *out_s, size_t out_s_cap, ulin_matrix *out_v)
+    ulin_matrix ulin_matrix_create_from_buffer(int rows, int cols,
+                                                const double *buf, size_t n)
+    int ulin_matrix_get_buffer(ulin_matrix h, double *out_buf, size_t out_cap)
 
     ulin_vec2 ulin_vec2_add(ulin_vec2 a, ulin_vec2 b)
     ulin_vec2 ulin_vec2_sub(ulin_vec2 a, ulin_vec2 b)
@@ -88,6 +93,52 @@ cdef class _MatrixHandle:
         obj._h = ulin_matrix_create(rows, cols)
         return obj if obj._h != NULL else None
 
+    @staticmethod
+    def create_from_buffer(int rows, int cols, values):
+        """Matrix from a flat row-major sequence -- one bulk C call instead
+        of rows*cols individual `set` calls. `values` already a contiguous
+        float64 buffer (array.array('d', ...), a NumPy float64 array, a
+        memoryview) is read with no copy; any other iterable (a `list`,
+        most commonly) is validated and copied in a single Cython-compiled
+        pass -- same dispatch pattern as UniAccurate's `_sum_generic`."""
+        cdef _MatrixHandle obj = _MatrixHandle()
+        cdef double[::1] view
+        cdef Py_ssize_t n, i
+        cdef double *buf
+        cdef object v
+        try:
+            view = values
+        except (TypeError, ValueError, BufferError):
+            n = len(values)
+            buf = <double *>malloc(n * sizeof(double)) if n > 0 else NULL
+            if n > 0 and buf == NULL:
+                raise MemoryError()
+            try:
+                for i in range(n):
+                    v = values[i]
+                    if isinstance(v, bool) or not isinstance(v, (int, float)):
+                        raise TypeError(f"elements must be numbers, got {type(v).__name__}")
+                    buf[i] = v
+                obj._h = ulin_matrix_create_from_buffer(rows, cols, buf, <size_t>n)
+            finally:
+                free(buf)
+        else:
+            obj._h = ulin_matrix_create_from_buffer(
+                rows, cols, &view[0] if view.shape[0] > 0 else NULL,
+                <size_t>view.shape[0])
+        return obj if obj._h != NULL else None
+
+    def get_buffer(self):
+        """Every element, flat row-major -- one bulk C call instead of
+        rows*cols individual `get` calls."""
+        cdef Py_ssize_t n = self.rows * self.cols
+        cdef array.array out = array.array('d', bytes(n * sizeof(double)))
+        cdef double[::1] view = out
+        cdef int written = ulin_matrix_get_buffer(self._h, &view[0], <size_t>n)
+        if written < 0:
+            return None
+        return out.tolist()
+
     @property
     def rows(self):
         return ulin_matrix_rows(self._h)
@@ -122,15 +173,43 @@ cdef class _MatrixHandle:
         cdef double d = ulin_matrix_determinant(self._h, &ok)
         return (d, bool(ok))
 
-    def lu_solve(self, list b, bint refine=False):
-        cdef size_t n = len(b)
-        cdef double[:] bv = _to_double_array(b)
-        cdef double[:] outv = _to_double_array([0.0] * n)
-        cdef int written = ulin_matrix_lu_solve(self._h, &bv[0], n, &outv[0], n,
-                                                 refine)
+    def lu_solve(self, b, bint refine=False):
+        cdef double[::1] bview
+        cdef Py_ssize_t n, i
+        cdef double *buf
+        cdef object v
+        cdef array.array out
+        cdef double[::1] outv
+        cdef int written
+        try:
+            bview = b
+        except (TypeError, ValueError, BufferError):
+            n = len(b)
+            buf = <double *>malloc(n * sizeof(double)) if n > 0 else NULL
+            if n > 0 and buf == NULL:
+                raise MemoryError()
+            try:
+                for i in range(n):
+                    v = b[i]
+                    if isinstance(v, bool) or not isinstance(v, (int, float)):
+                        raise TypeError(f"elements must be numbers, got {type(v).__name__}")
+                    buf[i] = v
+                out = array.array('d', bytes(n * sizeof(double)))
+                outv = out
+                written = ulin_matrix_lu_solve(self._h, buf, <size_t>n,
+                                                &outv[0], <size_t>n, refine)
+            finally:
+                free(buf)
+        else:
+            n = bview.shape[0]
+            out = array.array('d', bytes(n * sizeof(double)))
+            outv = out
+            written = ulin_matrix_lu_solve(
+                self._h, &bview[0] if n > 0 else NULL, <size_t>n,
+                &outv[0] if n > 0 else NULL, <size_t>n, refine)
         if written < 0:
             return None
-        return [outv[i] for i in range(written)]
+        return out.tolist()[:written]
 
     def cholesky(self):
         return _wrap(ulin_matrix_cholesky(self._h))
@@ -148,13 +227,14 @@ cdef class _MatrixHandle:
 
     def svd(self):
         cdef int cols = ulin_matrix_cols(self._h)
-        cdef double[:] sv = _to_double_array([0.0] * cols)
+        cdef array.array out = array.array('d', bytes(cols * sizeof(double)))
+        cdef double[::1] sv = out
         cdef ulin_matrix u = NULL
         cdef ulin_matrix v = NULL
         cdef int status = ulin_matrix_svd(self._h, &u, &sv[0], cols, &v)
         if status != ULIN_OK:
             return None
-        return (_wrap(u), [sv[i] for i in range(cols)], _wrap(v))
+        return (_wrap(u), out.tolist(), _wrap(v))
 
 
 cdef _MatrixHandle _wrap(ulin_matrix h):
@@ -163,11 +243,6 @@ cdef _MatrixHandle _wrap(ulin_matrix h):
     cdef _MatrixHandle obj = _MatrixHandle()
     obj._h = h
     return obj
-
-
-cdef double[:] _to_double_array(list values):
-    import array
-    return array.array('d', values)
 
 
 def vec2_add(x1, y1, x2, y2):

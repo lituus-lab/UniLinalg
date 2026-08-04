@@ -34,17 +34,20 @@ class Matrix:
 
     @classmethod
     def from_rows(cls, rows):
-        """Build from a list of row lists, e.g. [[1.0, 2.0], [3.0, 4.0]]."""
+        """Build from a list of row lists, e.g. [[1.0, 2.0], [3.0, 4.0]].
+        One bulk C call, not rows*cols individual `set` calls -- see
+        `_MatrixHandle.create_from_buffer`."""
         if not rows or not all(isinstance(r, (list, tuple)) for r in rows):
             raise TypeError("rows must be a non-empty list of row lists")
         ncols = len(rows[0])
         if any(len(r) != ncols for r in rows):
             raise ValueError("all rows must have the same length")
-        m = cls(len(rows), ncols)
-        for i, row in enumerate(rows):
-            for j, v in enumerate(row):
-                m[i, j] = float(v)
-        return m
+        flat = [v for row in rows for v in row]
+        handle = _core._MatrixHandle.create_from_buffer(len(rows), ncols, flat)
+        if handle is None:
+            raise ValueError(
+                f"failed to create matrix of shape ({len(rows)}, {ncols})")
+        return cls._from_handle(handle)
 
     @property
     def rows(self):
@@ -114,11 +117,13 @@ class Matrix:
         mismatch, or a singular matrix. refine=True runs one step of
         UniAccurate-backed iterative refinement after the solve, correcting
         the 1-2 ULP a plain float64 solve can miss (ADR-0006)."""
-        if not isinstance(b, (list, tuple)):
-            raise TypeError(f"b must be a list, got {type(b).__name__}")
-        if len(b) != self.rows:
-            raise ValueError(f"b has length {len(b)}, expected {self.rows}")
-        result = self._h.lu_solve([float(v) for v in b], bool(refine))
+        try:
+            blen = len(b)
+        except TypeError:
+            raise TypeError(f"b must be a sized iterable, got {type(b).__name__}")
+        if blen != self.rows:
+            raise ValueError(f"b has length {blen}, expected {self.rows}")
+        result = self._h.lu_solve(b, bool(refine))
         if result is None:
             raise ValueError("solve failed: non-square, shape mismatch, "
                               "or singular matrix")
@@ -149,7 +154,11 @@ class Matrix:
         return (Matrix._from_handle(u), s, Matrix._from_handle(v))
 
     def to_rows(self):
-        return [[self[i, j] for j in range(self.cols)] for i in range(self.rows)]
+        """One bulk C call, not rows*cols individual `get` calls -- see
+        `_MatrixHandle.get_buffer`."""
+        flat = self._h.get_buffer()
+        cols = self.cols
+        return [flat[i * cols:(i + 1) * cols] for i in range(self.rows)]
 
     def __repr__(self):
         return f"Matrix({self.to_rows()!r})"
