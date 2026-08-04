@@ -1,5 +1,7 @@
 bench
 bench_vs_lapack
 bench_vs_arraymancer
+export_readme
+.md_bench.md
 nimcache/
 *.csv
