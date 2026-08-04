@@ -56,6 +56,50 @@ int main(void) {
   check_d("lu_solve refine: x[1]", xr[1], 2.0, 0.0);
   check_d("lu_solve refine: x[2]", xr[2], 3.0, 0.0);
 
+  /* lu_solve failure reasons: each maps to its own negated ULIN_ERR_* code,
+   * not a flat -1. */
+  check_i("lu_solve: NULL handle", ulin_matrix_lu_solve(NULL, b, 3, x, 3, false),
+          -ULIN_ERR_NULL_HANDLE);
+  check_i("lu_solve: blen shape mismatch", ulin_matrix_lu_solve(a, b, 2, x, 3, false),
+          -ULIN_ERR_SHAPE_MISMATCH);
+  check_i("lu_solve: out_cap too small", ulin_matrix_lu_solve(a, b, 3, x, 2, false),
+          -ULIN_ERR_BUFFER_TOO_SMALL);
+  ulin_matrix singular = ulin_matrix_create(2, 2);
+  ulin_matrix_set(singular, 0, 0, 1.0); ulin_matrix_set(singular, 0, 1, 2.0);
+  ulin_matrix_set(singular, 1, 0, 2.0); ulin_matrix_set(singular, 1, 1, 4.0);
+  double sb[2] = {1.0, 1.0};
+  double sx[2];
+  check_i("lu_solve: singular matrix", ulin_matrix_lu_solve(singular, sb, 2, sx, 2, false),
+          -ULIN_ERR_SINGULAR);
+  ulin_matrix_destroy(singular);
+
+  /* Bulk buffer transfer: one copy in, one copy out, vs the same avals/a
+   * already built above one element at a time. */
+  ulin_matrix abuf = ulin_matrix_create_from_buffer(3, 3, avals, 9);
+  check_d("create_from_buffer: [0][0]", ulin_matrix_get(abuf, 0, 0), 1.0, 1e-9);
+  check_d("create_from_buffer: [1][2]", ulin_matrix_get(abuf, 1, 2), 3.0, 1e-9);
+  check_d("create_from_buffer: [2][2]", ulin_matrix_get(abuf, 2, 2), 1.0, 1e-9);
+  double around[9];
+  int gn = ulin_matrix_get_buffer(a, around, 9);
+  check_i("get_buffer: elements written", gn, 9);
+  check_d("get_buffer: [0]", around[0], avals[0], 1e-9);
+  check_d("get_buffer: [8]", around[8], avals[8], 1e-9);
+  check_i("create_from_buffer: NULL on shape mismatch",
+          ulin_matrix_create_from_buffer(3, 3, avals, 8) == NULL, 1);
+  check_i("get_buffer: -ULIN_ERR_BUFFER_TOO_SMALL on too-small out_cap",
+          ulin_matrix_get_buffer(a, around, 8), -ULIN_ERR_BUFFER_TOO_SMALL);
+  check_i("get_buffer: -ULIN_ERR_NULL_HANDLE on a NULL handle",
+          ulin_matrix_get_buffer(NULL, around, 9), -ULIN_ERR_NULL_HANDLE);
+  ulin_matrix_destroy(abuf);
+
+  /* rows*cols must fit in a returned cint count -- otherwise the count
+   * silently wraps under -d:danger (range checks compiled away). 46341 *
+   * 46346 = 2147719986, just past INT32_MAX (2147483647). */
+  check_i("create: NULL when rows*cols overflows a cint count",
+          ulin_matrix_create(46341, 46346) == NULL, 1);
+  check_i("create_from_buffer: NULL when rows*cols overflows a cint count",
+          ulin_matrix_create_from_buffer(46341, 46346, avals, 0) == NULL, 1);
+
   /* Determinant: known value -2.0 for [[1,2],[3,4]]. */
   ulin_matrix d2 = ulin_matrix_create(2, 2);
   ulin_matrix_set(d2, 0, 0, 1.0); ulin_matrix_set(d2, 0, 1, 2.0);
@@ -76,6 +120,13 @@ int main(void) {
   check_d("cholesky: l[1][1]", ulin_matrix_get(l, 1, 1), sqrt(2.0), 1e-9);
   ulin_matrix_destroy(l);
   ulin_matrix_destroy(spd);
+
+  /* Cholesky: NULL on a non-square matrix -- the underlying algorithm's own
+   * shape guard is debug-only (compiled away under -d:danger, this build's
+   * flag) and silently returns a wrong-but-plausible result otherwise. */
+  ulin_matrix nonSquare = ulin_matrix_create(2, 3);
+  check_i("cholesky: NULL on non-square", ulin_matrix_cholesky(nonSquare) == NULL, 1);
+  ulin_matrix_destroy(nonSquare);
 
   /* QR: shape check on a valid 3x2 input. */
   ulin_matrix qa = ulin_matrix_create(3, 2);
