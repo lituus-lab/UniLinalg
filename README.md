@@ -7,6 +7,30 @@ and `Vector[D,T]`, a fixed-dimension geometric/physical vector. Depends on
 UniMath (`UniLinalg --> UniMath`) for `Vector`'s exact-precision arithmetic;
 designed to be consumed by downstream geometry/physics engines.
 
+## What's inside
+
+- **Matrices** — `Matrix[T]` (dense, runtime-sized) and `CsrMatrix[T]`
+  (sparse, compressed-row).
+- **Decompositions** (`algorithms/`) — partial-pivoting LU (`solve`,
+  `inverse`, determinant), un-blocked Cholesky, Householder QR
+  (`leastSquares`), one-sided Jacobi SVD.
+- **Accurate refinement** (`refine.nim`, opt-in `refine = true` on `solve`,
+  `inverse`, `leastSquares`, plus per-decomposition `*RefineOnce`) — one step
+  of UniAccurate-backed iterative refinement to recover the last few ULP a
+  plain float64 factorization can miss (ADR-0006).
+- **`Vector[D,T]`** — fixed `D` in `{2, 3, 4}`, geometry/physics-oriented
+  (dot, cross, length, normalize), constrained to UniMath's `RealField`.
+
+## The Uni* family
+
+UniLinalg is layer 3 of `lituus-lab`'s `Uni*` family: a set of Nim libraries,
+each with a C ABI and a Python binding, unified by a shared dependency DAG and
+documentation/testing conventions. See
+[lituus-lab/.github](https://github.com/lituus-lab/.github) for the family's
+purpose and philosophy. UniLinalg depends on UniMath (layer 2) for `Vector`'s
+exact-precision roots and on UniAccurate (layer 1, transitively) for the
+refinement residual.
+
 ## Anti-goals
 
 - **Not a BLAS/LAPACK replacement.** No blocked/tiled kernels, no SIMD
@@ -24,7 +48,7 @@ designed to be consumed by downstream geometry/physics engines.
   textbook versions (partial-pivoting LU, un-blocked Cholesky, Householder
   QR, one-sided Jacobi SVD); no research-grade variants.
 
-## Provenance
+## Provenance & development
 
 Domain content (`Matrix`/`CsrMatrix`/LU/Cholesky/QR/SVD) relocated from the
 original `UniversalMath` monorepo's `UniLinalg` package (1.0.0). `Vector[D,T]`
@@ -34,6 +58,13 @@ ADR-0005 for the two substantive decisions beyond a straight port:
 narrower `SomeFloat`), and the real `UniLinalg --> UniMath` dependency edge
 (`Vector.length()`'s unqualified `sqrt` resolves to UniMath's `BigFloat`/
 `Rational`/`Fixed` roots for the exact scalars).
+
+Development used LLM/agent assistance extensively, on the terms described in
+`.github/README.md`. One visible consequence: this repo's git history is
+short and linear, with commits landing close together in time — that
+reflects an LLM/agent rewrite pass over the pre-existing `UniversalMath`
+design above, not the decompositions being written at that speed from a
+blank page.
 
 ## Layout
 
@@ -72,6 +103,8 @@ nimble coverage       # gcov + lcov -> coverage/
 nimble book           # nimib book -> book/index.html
 nimble docs           # book + API reference -> pages/
 nimble checkVGraph    # no upward import relative to vgraph.cfg's layer order
+nimble bench          # throughput + refine-accuracy benchmarks (see bench/README.md)
+nimble benchReadme    # bench, then splice a headline table into bench/README.md for this machine
 ```
 
 `lituus-lab/UniMath` is private today: `nimble install` needs git credentials
@@ -79,6 +112,12 @@ with read access (e.g. `gh auth setup-git`, or an SSH key registered on the
 `lituus-lab` org). CI configures this via a repo secret (`UNIMATH_READ_TOKEN`,
 see `.github/workflows/ci.yml`); that step becomes a no-op once `UniMath` is
 made public.
+
+## Benchmarks
+
+See [bench/README.md](https://github.com/lituus-lab/UniLinalg/blob/main/bench/README.md)
+for the full write-up (throughput vs. LAPACK/Arraymancer, the `-d:danger`/
+indexing levers, and the refine-accuracy table) and machine-tagged results.
 
 ## CI
 
