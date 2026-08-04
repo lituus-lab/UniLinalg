@@ -2,14 +2,10 @@
 # Copyright 2026 lituus-lab
 ## Splice the bench markdown fragment `nimble benchReadme` wrote
 ## (bench/.md_bench.md, gitignored) into bench/README.md's Benchmarks
-## section, tagged to the machine that ran it.
-##
-## `<!-- bench:machine=<slug> -->` ... `<!-- /bench:machine=<slug> -->`
-## wraps the block. Re-running on the same machine replaces only that
-## block; a different slug (or the `UNILINALG_BENCH_MACHINE` env var, for
-## a box whose auto-detected slug is not the one you want recorded, e.g.
-## a FreeBSD/Zen4 box) appends alongside it -- one README can carry
-## results from several machines without one overwriting another's.
+## section, tagged to the machine that ran it (`<!-- bench:machine=<slug>
+## --> ... <!-- /bench:machine=<slug> -->`). See bench/README.md's
+## "Machine-tagged results" section for the multi-machine replace/append
+## behavior.
 import std/[os, osproc, strutils]
 
 proc machineSlug(): string =
@@ -33,7 +29,14 @@ proc spliceReadme(path: string, slug: string, body: string) =
   let full = startTag & "\n" & body & "\n" & endTag
   if startTag in content:
     let s = content.find(startTag)
-    let e = content.find(endTag) + endTag.len
+    let endPos = content.find(endTag)
+    if endPos < s:
+      stderr.writeLine("[readme] " & path &
+        " has a start marker for " & slug &
+        " with no matching (or out-of-order) end marker -- skip splice " &
+        "rather than corrupt the file")
+      return
+    let e = endPos + endTag.len
     writeFile(path, content[0 ..< s] & full & content[e .. ^1])
     stderr.writeLine("[readme] replaced block for " & slug)
   else:
@@ -51,7 +54,18 @@ proc main() =
   if not fileExists(fragPath):
     stderr.writeLine("[readme] missing " & fragPath & " -- run `nimble benchReadme` first")
     quit(1)
-  spliceReadme(readmePath, machineSlug(), readFile(fragPath))
+  var body = readFile(fragPath)
+  const refBenches = [
+    ("vs raw LAPACK (nimlapack, OpenBLAS)", "bench/.md_vs_lapack.txt"),
+    ("vs Arraymancer", "bench/.md_vs_arraymancer.txt"),
+  ]
+  for (title, path) in refBenches:
+    if fileExists(path):
+      body &= "\n**" & title & "**\n\n```text\n" & readFile(path).strip() & "\n```\n"
+    else:
+      stderr.writeLine("[readme] no " & path &
+        " -- install nimlapack/arraymancer and re-run `nimble benchReadme` for this comparison")
+  spliceReadme(readmePath, machineSlug(), body)
 
 when isMainModule:
   main()
