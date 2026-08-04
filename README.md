@@ -35,8 +35,9 @@ refinement residual.
 
 - **Not a BLAS/LAPACK replacement.** No blocked/tiled kernels, no SIMD
   dispatch. The decompositions are pedagogical-clarity-first, not
-  performance-competitive with a vendor library. A future `-d:uniSimd`
-  opt-in is only worth adding if a real consumer needs it.
+  performance-competitive with a vendor library. A future `-d:simd`
+  opt-in (the family's established flag name, see UniAccurate) is only
+  worth adding if a real consumer needs it.
 - **`Vector[D,T]` is not a general-purpose N-dimensional array.** Fixed
   `D` in `{2, 3, 4}` only, geometry/physics-oriented (dot, cross, length,
   normalize). For arbitrary-length vectors, use `Matrix`'s `seq[T]`-returning
@@ -72,9 +73,10 @@ blank page.
 src/UniLinalg.nim                    umbrella module
 src/UniLinalg/types/matrix.nim       Matrix[T] (dense, runtime-sized)
 src/UniLinalg/types/sparse.nim       CsrMatrix[T]
-src/UniLinalg/types/vector.nim       Vector[D,T] (compile-time-sized, SomeFloat)
+src/UniLinalg/types/vector.nim       Vector[D,T] (compile-time-sized, RealField)
 src/UniLinalg/types/tolerance.nim    EPSILON_DEFAULT, almostZero, almostEqual
 src/UniLinalg/algorithms/{lu,cholesky,qr,svd}.nim   decompositions
+src/UniLinalg/algorithms/refine.nim  residual(), shared by each decomposition's refine step
 src/UniLinalg/c_api.nim              C ABI (ulin_ prefix)
 include/UniLinalg.h                  hand-written C header
 tests/ tests/c/                      Nim + C ABI tests
@@ -83,7 +85,8 @@ py/                                  Cython binding + pytest
 book/                                nimib book
 ADRs/                                0001 sibling deps, 0002 license,
                                       0003 engine&shell, 0004 conventions,
-                                      0005 Vector + UniMath
+                                      0005 Vector + UniMath, 0006 refine
+                                      via UniAccurate
 vgraph.cfg tools/vgraph.nim          anti-cycle + sibling-dependency check (ADR-0001)
 .github/workflows/ci.yml             3-OS Nim matrix + C ABI + Python
 ```
@@ -107,11 +110,10 @@ nimble bench          # throughput + refine-accuracy benchmarks (see bench/READM
 nimble benchReadme    # bench, then splice a headline table into bench/README.md for this machine
 ```
 
-`lituus-lab/UniMath` is private today: `nimble install` needs git credentials
-with read access (e.g. `gh auth setup-git`, or an SSH key registered on the
-`lituus-lab` org). CI configures this via a repo secret (`UNIMATH_READ_TOKEN`,
-see `.github/workflows/ci.yml`); that step becomes a no-op once `UniMath` is
-made public.
+`lituus-lab/UniMath` is public: `nimble install` fetches it with no
+credentials needed. CI still supports an optional `UNIMATH_READ_TOKEN` repo
+secret (see `.github/workflows/ci.yml`) for a private fork/mirror; it's a
+no-op when the secret is unset, as it is by default here now.
 
 ## Benchmarks
 
