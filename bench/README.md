@@ -175,3 +175,63 @@ cheaper still: ~0.4x a fresh `solve` at n=64, see ADR-0006).
 `--baseline:<file> --threshold:0.15` flags any op/size pair that regressed by
 more than 15% and exits non-zero. No baseline is committed here yet -- run
 `nimble bench -- --csv:bench/baseline.csv` once a target machine is fixed.
+
+## Machine-tagged results
+
+`nimble benchReadme` runs the suite above and writes the table below, tagged
+to the machine it ran on (`<!-- bench:machine=... -->` -- see
+`bench/export_readme.nim`). Re-running on the same machine replaces only that
+machine's block; a second machine (say a FreeBSD/Zen4 box,
+`UNILINALG_BENCH_MACHINE` env var to name it explicitly) adds its own block
+alongside, so this table can carry more than one machine's numbers at once
+without either overwriting the other.
+
+<!-- bench:insert -->
+
+<!-- bench:machine=macosx-apple-m4 -->
+| op | n | ms | ops/sec |
+|---|---|---|---|
+| matmul | 16 | 0.002 | 8000000. |
+| matmul | 32 | 0.012 | 2666667. |
+| matmul | 64 | 0.095 | 673684. |
+| matmul | 128 | 0.820 | 156098. |
+| matmul | 256 | 6.517 | 39282. |
+| transpose | 16 | 0.000 | - |
+| transpose | 32 | 0.000 | - |
+| transpose | 64 | 0.002 | 32000000. |
+| transpose | 128 | 0.013 | 9846154. |
+| transpose | 256 | 0.156 | 1641026. |
+| transpose | 512 | 0.843 | 607355. |
+| lu_solve | 16 | 0.002 | 8000000. |
+| lu_solve | 32 | 0.011 | 2909091. |
+| lu_solve | 64 | 0.058 | 1103448. |
+| lu_solve | 128 | 0.405 | 316049. |
+| lu_solve | 256 | 3.068 | 83442. |
+| lu_solve_refine | 16 | 0.006 | 2666667. |
+| lu_solve_refine | 32 | 0.020 | 1600000. |
+| lu_solve_refine | 64 | 0.079 | 810127. |
+| lu_solve_refine | 128 | 0.476 | 268908. |
+| lu_solve_refine | 256 | 3.340 | 76647. |
+| cholesky | 16 | 0.001 | 16000000. |
+| cholesky | 32 | 0.002 | 16000000. |
+| cholesky | 64 | 0.011 | 5818182. |
+| cholesky | 128 | 0.085 | 1505882. |
+| cholesky | 256 | 0.884 | 289593. |
+| qr | 16 | 0.006 | 2666667. |
+| qr | 32 | 0.031 | 1032258. |
+| qr | 64 | 0.155 | 412903. |
+| qr | 128 | 1.649 | 77623. |
+| svd (one-sided Jacobi) | 16 | 0.036 | 444444. |
+| svd (one-sided Jacobi) | 32 | 0.265 | 120755. |
+| svd (one-sided Jacobi) | 64 | 2.220 | 28829. |
+
+**Accuracy: solve() vs solve(refine=true)**
+
+| n | cond2(A) | max\|residual\| plain | max\|residual\| refined |
+|---|---|---|---|
+| 16 | 32.1 | 1.265e-15 | 2.444e-16 |
+| 32 | 208.9 | 1.236e-14 | 1.719e-15 |
+| 64 | 237.0 | 5.350e-14 | 2.687e-15 |
+| 128 | 184.2 | 2.103e-14 | 7.436e-16 |
+
+<!-- /bench:machine=macosx-apple-m4 -->
