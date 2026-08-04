@@ -62,8 +62,26 @@ task testAll, "debug + release + C ABI":
 task example, "Nim demo":
   exec "nim c -r --path:src -o:build/demo examples/demo.nim"
 
-task bench, "UniLinalg-only throughput benchmark (bench/bench.nim)":
-  exec "nim c -r -d:danger --path:src -o:build/bench bench/bench.nim"
+# `nimble <task> -- --foo` never reaches this task's `exec` line on its own --
+# nimble's own argv (visible to `paramStr` here) carries the raw CLI tokens,
+# but a hardcoded `exec` string doesn't forward them. Extracting everything
+# after the task's own name is what makes `nimble bench -- --csv:...` from
+# bench/README.md's Regression gate section actually work.
+proc forwardedArgs(taskName: string): string =
+  var found = false
+  for i in 1 .. paramCount():
+    let p = paramStr(i)
+    if found:
+      if p != "--": result &= " " & p
+    elif p == taskName:
+      found = true
+
+task bench, "UniLinalg-only throughput benchmark (bench/bench.nim; forwards --csv:/--baseline:/--threshold:/--md: after --)":
+  exec "nim c -r -d:danger --path:src -o:build/bench bench/bench.nim" & forwardedArgs("bench")
+
+task benchReadme, "bench + markdown export, then splice a headline table into bench/README.md for this machine":
+  exec "nim c -r -d:danger --path:src -o:build/bench bench/bench.nim --md:bench/.md_bench.md"
+  exec "nim c -r --path:src bench/export_readme.nim"
 
 # Not `requires`d: nimlapack/arraymancer are dev-only comparison tooling, not
 # real library dependencies (see bench/README.md) -- resolved at task-run time
