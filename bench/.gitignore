@@ -3,5 +3,7 @@ bench_vs_lapack
 bench_vs_arraymancer
 export_readme
 .md_bench.md
+.md_vs_lapack.txt
+.md_vs_arraymancer.txt
 nimcache/
 *.csv

@@ -79,8 +79,22 @@ proc forwardedArgs(taskName: string): string =
 task bench, "UniLinalg-only throughput benchmark (bench/bench.nim; forwards --csv:/--baseline:/--threshold:/--md: after --)":
   exec "nim c -r -d:danger --path:src -o:build/bench bench/bench.nim" & forwardedArgs("bench")
 
-task benchReadme, "bench + markdown export, then splice a headline table into bench/README.md for this machine":
+task benchReadme, "bench (+ vs LAPACK/Arraymancer if installed), splice into bench/README.md":
   exec "nim c -r -d:danger --path:src -o:build/bench bench/bench.nim --md:bench/.md_bench.md"
+  let (lapackPath, lapackCode) = gorgeEx("nimble path nimlapack")
+  if lapackCode == 0:
+    exec "nim c -d:danger --path:src --path:" & lapackPath.strip() &
+        " -o:build/bench_vs_lapack bench/compare/vs_lapack.nim"
+    exec "./build/bench_vs_lapack > bench/.md_vs_lapack.txt"
+  else:
+    echo "benchReadme: nimlapack not installed -- skipping vs LAPACK"
+  let (amPath, amCode) = gorgeEx("nimble path arraymancer")
+  if amCode == 0:
+    exec "nim c -d:danger --path:src --path:" & amPath.strip() &
+        " -o:build/bench_vs_arraymancer bench/compare/vs_arraymancer.nim"
+    exec "./build/bench_vs_arraymancer > bench/.md_vs_arraymancer.txt"
+  else:
+    echo "benchReadme: arraymancer not installed -- skipping vs Arraymancer"
   exec "nim c -r --path:src bench/export_readme.nim"
 
 # Not `requires`d: nimlapack/arraymancer are dev-only comparison tooling, not
