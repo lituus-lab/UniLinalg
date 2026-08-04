@@ -148,6 +148,27 @@ proc ulin_matrix_set(h: pointer, i, j: cint, v: float64) =
   if i < 0 or j < 0 or int(i) >= m[].rows or int(j) >= m[].cols: return
   m[][int(i), int(j)] = v
 
+proc ulin_matrix_create_from_buffer(rows, cols: cint, buf: ptr float64,
+                                     n: csize_t): pointer =
+  ## Matrix from a flat row-major buffer (element (i,j) at buf[i*cols+j]) --
+  ## one bulk copy instead of rows*cols individual `ulin_matrix_set` calls.
+  ## NULL if rows/cols <= 0, buf is nil, or n != rows*cols.
+  if rows <= 0 or cols <= 0 or buf == nil: return nil
+  if int(n) != int(rows) * int(cols): return nil
+  pin(matrix[float64](int(rows), int(cols), ptrToSeq(buf, n)))
+
+proc ulin_matrix_get_buffer(h: pointer, outBuf: ptr float64,
+                             outCap: csize_t): cint =
+  ## Bulk row-major read of every element into outBuf -- one copy instead of
+  ## rows*cols individual `ulin_matrix_get` calls. Returns the count written
+  ## (rows*cols), or -1 on a nil handle/buffer or outCap too small.
+  if h == nil or outBuf == nil: return cint(-1)
+  let m = cast[AbiMatrix](h)
+  let n = m[].rows * m[].cols
+  if int(outCap) < n: return cint(-1)
+  seqToBuf(m[].data, outBuf)
+  cint(n)
+
 proc ulin_matrix_add(a, b: pointer): pointer =
   ## NULL on a nil handle or shape mismatch.
   if a == nil or b == nil: return nil

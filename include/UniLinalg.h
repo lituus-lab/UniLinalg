@@ -22,9 +22,11 @@ extern "C" {
     UNILINALG_VERSION_PATCH >= (pa)))
 
 /* Error codes. ulin_matrix_qr/ulin_matrix_svd only ever return OK,
- * NULL_HANDLE, SHAPE_MISMATCH, or (svd) BUFFER_TOO_SMALL; SINGULAR and
- * NOT_SPD are reserved here but signaled by ulin_matrix_lu_solve (-1) and
- * ulin_matrix_cholesky (NULL) as plain sentinel values instead. */
+ * NULL_HANDLE, SHAPE_MISMATCH, or (svd) BUFFER_TOO_SMALL. ulin_matrix_lu_solve
+ * returns the negated code (e.g. -ULIN_ERR_SINGULAR) instead of a bare -1;
+ * ulin_matrix_cholesky still signals NOT_SPD as a plain NULL, since its
+ * pointer return has no room for a reason code without an extra
+ * out-parameter. */
 #define ULIN_OK 0
 #define ULIN_ERR_NULL_HANDLE 1
 #define ULIN_ERR_SHAPE_MISMATCH 2
@@ -32,9 +34,12 @@ extern "C" {
 #define ULIN_ERR_NOT_SPD 4
 #define ULIN_ERR_BUFFER_TOO_SMALL 5
 
-/* Opaque handles. Never dereference; only pass between ulin_* calls. */
-typedef void *ulin_matrix;
-typedef void *ulin_sparse;
+/* Opaque handles. Never dereference; only pass between ulin_* calls.
+ * Distinct incomplete-struct types, not both bare void*, so passing a
+ * ulin_sparse where a ulin_matrix is expected (or vice versa) is a compiler
+ * error instead of silently compiling. */
+typedef struct ulin_matrix_s *ulin_matrix;
+typedef struct ulin_sparse_s *ulin_sparse;
 
 /* Value-type fixed-dimension vectors (float64 only). D is a compile-time
  * constant per alias, so these pass/return by value -- no handle, no heap
@@ -65,7 +70,8 @@ const char *ulin_get_error_string(int error_code);
  * Matrix — handle-based (rows x cols, row-major, float64).
  * ----------------------------------------------------------------------- */
 
-/* Zero matrix of the given shape. NULL if rows/cols <= 0. */
+/* Zero matrix of the given shape. NULL if rows/cols <= 0 or rows*cols
+ * overflows what a returned element count can represent. */
 ulin_matrix ulin_matrix_create(int rows, int cols);
 void ulin_matrix_destroy(ulin_matrix h);
 
@@ -77,6 +83,20 @@ int ulin_matrix_cols(ulin_matrix h);
 double ulin_matrix_get(ulin_matrix h, int i, int j);
 /* No-op on a nil handle or out-of-range index. */
 void ulin_matrix_set(ulin_matrix h, int i, int j, double v);
+
+/* Matrix from a flat row-major buffer (element (i,j) at buf[i*cols+j]) --
+ * one bulk copy instead of rows*cols individual ulin_matrix_set calls. NULL
+ * if rows/cols <= 0, buf is NULL, n != rows*cols, or rows*cols overflows
+ * what a returned element count can represent. */
+ulin_matrix ulin_matrix_create_from_buffer(int rows, int cols,
+                                            const double *buf, size_t n);
+/* Bulk row-major read of every element into out_buf -- one copy instead of
+ * rows*cols individual ulin_matrix_get calls. Returns the count written
+ * (rows*cols), or the negated ULIN_ERR_* reason (-ULIN_ERR_NULL_HANDLE /
+ * -ULIN_ERR_BUFFER_TOO_SMALL) on failure -- always negative, so a plain
+ * `< 0` check still works for a caller that only wants pass/fail.
+ * rows*cols too large to return as a count is also -ULIN_ERR_BUFFER_TOO_SMALL. */
+int ulin_matrix_get_buffer(ulin_matrix h, double *out_buf, size_t out_cap);
 
 /* NULL on a nil handle or a shape mismatch. */
 ulin_matrix ulin_matrix_add(ulin_matrix a, ulin_matrix b);
@@ -95,13 +115,18 @@ double ulin_matrix_determinant(ulin_matrix h, int *out_ok);
 
 /* Solves Ax = b, writing x into out_buf (out_cap must be >= rows). `refine`
  * true runs one step of UniAccurate-backed iterative refinement after the
- * solve (ADR-0006). Returns the number of elements written, or -1 on a nil
- * handle/buffer, shape mismatch, too-small buffer, or a singular matrix. */
+ * solve (ADR-0006). Returns the number of elements written, or the negated
+ * ULIN_ERR_* reason (-ULIN_ERR_NULL_HANDLE / -ULIN_ERR_SHAPE_MISMATCH /
+ * -ULIN_ERR_BUFFER_TOO_SMALL / -ULIN_ERR_SINGULAR) on failure -- always
+ * negative, so a plain `< 0` check still works for a caller that only
+ * wants pass/fail. */
 int ulin_matrix_lu_solve(ulin_matrix h, const double *b, size_t blen,
                           double *out_buf, size_t out_cap, bool refine);
 
 /* Lower-triangular L with A = L L^T. NULL on a nil handle, a non-square
- * matrix, or a matrix that is not symmetric positive-definite. */
+ * matrix, or a matrix that is not symmetric positive-definite -- undifferentiated,
+ * unlike ulin_matrix_lu_solve: a pointer return has no room for a reason code
+ * without an extra out-parameter, which this ABI does not add here. */
 ulin_matrix ulin_matrix_cholesky(ulin_matrix h);
 
 /* Householder QR: A = Q R. Writes the Q and R handles through out_q/out_r.
