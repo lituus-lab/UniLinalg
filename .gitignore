@@ -1,0 +1,55 @@
+# build artifacts
+build/
+libUniLinalg.so
+libUniLinalg.so.*
+libUniLinalg.dylib
+libUniLinalg.a
+UniLinalg.lib
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.so.*
+*.dylib
+*.a
+*.lib
+
+# coverage
+coverage/
+lcov.info
+
+# nim cache
+nimcache/
+rnimcache/
+dnimcache/
+
+# docs output
+pages/
+book/*.html
+nimdoc.out.css
+
+# python binding artifacts (sources tracked; generated + bundled lib not)
+py/unilinalg/_core.c
+py/unilinalg/*.so
+py/unilinalg/libUniLinalg.dylib
+py/unilinalg/libUniLinalg.so
+py/dist/
+py/build/
+py/*.egg-info/
+py/**/__pycache__/
+py/.pytest_cache/
+py/_nimsrc/
+
+# c test/example binaries
+tests/c/test_unilinalg
+examples/c/demo
+
+# os / editor
+.DS_Store
+*~
+.*.swp
+*.dSYM
+
+*.log
+*.core
