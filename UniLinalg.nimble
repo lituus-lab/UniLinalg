@@ -45,14 +45,10 @@ task testRelease, "Nim tests (-d:danger: bound/overflow checks off, contracts co
   exec "nim c -r -d:danger --path:src -o:build/test_vector_rel tests/test_vector.nim"
 
 task testCi, "Nim tests (CI subset, debug)":
-  exec "nim c -r --path:src -o:build/test_linalg tests/test_linalg.nim"
-  exec "nim c -r --path:src -o:build/test_contracts tests/test_contracts.nim"
-  exec "nim c -r --path:src -o:build/test_vector tests/test_vector.nim"
+  exec "nimble test"
 
 task testCiRelease, "Nim tests (CI subset, -d:danger)":
-  exec "nim c -r -d:danger --path:src -o:build/test_linalg_rel tests/test_linalg.nim"
-  exec "nim c -r -d:danger --path:src -o:build/test_contracts_rel tests/test_contracts.nim"
-  exec "nim c -r -d:danger --path:src -o:build/test_vector_rel tests/test_vector.nim"
+  exec "nimble testRelease"
 
 task testAll, "debug + release + C ABI":
   exec "nimble test"
@@ -150,14 +146,24 @@ task clibMsvc, "C static library, MSVC ABI (Windows Python extension)":
 # Nim's MinGW toolchain names it mingw32-make.
 let makeExe = if findExe("mingw32-make").len > 0: "mingw32-make" else: "make"
 
+# tests/c and examples/c are POSIX-portable Makefiles carrying no OS branch
+# (GNU and BSD make share no conditional syntax), so the Windows names come
+# from here as command-line assignments, which beat `?=` on every make flavor.
+# `del` needs no `/q`: it is only ever handed a single name, never a wildcard.
+proc winMakeVars(bin: string): string =
+  when defined(windows):
+    " CC=gcc BIN=" & bin & ".exe RUN=" & bin & ".exe RM_F=del"
+  else:
+    ""
+
 # `make -C`, not `cd dir && make`: nimble's exec runs no shell on Windows.
 task ctest, "C ABI tests":
   exec "nimble clibStatic"
-  exec makeExe & " -C tests/c"
+  exec makeExe & " -C tests/c" & winMakeVars("test_unilinalg")
 
 task cexample, "C demo":
   exec "nimble clibStatic"
-  exec makeExe & " -C examples/c"
+  exec makeExe & " -C examples/c" & winMakeVars("demo")
 
 task pyDeps, "Install Python build deps (setuptools, Cython, pytest) if missing":
   exec "python3 -m pip install --break-system-packages --quiet setuptools wheel \"Cython>=3.0.0\" pytest"
