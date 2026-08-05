@@ -8,7 +8,18 @@ __version__ = _core.version().decode("ascii")
 
 def version():
     """C library version string."""
-    return _core.version().decode("ascii")
+    return __version__
+
+
+def _checked(handle, what):
+    """Raise ValueError instead of silently returning a native None -- every
+    caller below already rules out the shape/type reasons the C ABI reports
+    before making this call, so it should never actually fire, but a silent
+    None would otherwise surface later as an unrelated AttributeError
+    instead of a clear error at the real failure site."""
+    if handle is None:
+        raise ValueError(f"{what} failed")
+    return handle
 
 
 class Matrix:
@@ -16,7 +27,8 @@ class Matrix:
     unilinalg._core's raw _MatrixHandle."""
 
     def __init__(self, rows, cols):
-        if not isinstance(rows, int) or not isinstance(cols, int):
+        if (isinstance(rows, bool) or isinstance(cols, bool)
+                or not isinstance(rows, int) or not isinstance(cols, int)):
             raise TypeError("rows and cols must be int")
         if rows <= 0 or cols <= 0:
             raise ValueError(f"rows and cols must be > 0, got ({rows}, {cols})")
@@ -82,11 +94,11 @@ class Matrix:
 
     def __add__(self, other):
         self._check_same_shape(other)
-        return Matrix._from_handle(self._h.add(other._h))
+        return Matrix._from_handle(_checked(self._h.add(other._h), "add"))
 
     def __sub__(self, other):
         self._check_same_shape(other)
-        return Matrix._from_handle(self._h.sub(other._h))
+        return Matrix._from_handle(_checked(self._h.sub(other._h), "sub"))
 
     def __matmul__(self, other):
         if not isinstance(other, Matrix):
@@ -95,15 +107,15 @@ class Matrix:
             raise ValueError(
                 f"shape mismatch: ({self.rows}, {self.cols}) @ "
                 f"({other.rows}, {other.cols})")
-        return Matrix._from_handle(self._h.matmul(other._h))
+        return Matrix._from_handle(_checked(self._h.matmul(other._h), "matmul"))
 
     def __mul__(self, scalar):
-        return Matrix._from_handle(self._h.scale(float(scalar)))
+        return Matrix._from_handle(_checked(self._h.scale(float(scalar)), "scale"))
 
     __rmul__ = __mul__
 
     def transpose(self):
-        return Matrix._from_handle(self._h.transpose())
+        return Matrix._from_handle(_checked(self._h.transpose(), "transpose"))
 
     def determinant(self):
         """Raises ValueError if the matrix is not square."""
@@ -120,7 +132,7 @@ class Matrix:
         try:
             blen = len(b)
         except TypeError:
-            raise TypeError(f"b must be a sized iterable, got {type(b).__name__}")
+            raise TypeError(f"b must be a sized iterable, got {type(b).__name__}") from None
         if blen != self.rows:
             raise ValueError(f"b has length {blen}, expected {self.rows}")
         result = self._h.lu_solve(b, bool(refine))
@@ -160,13 +172,62 @@ class Matrix:
         cols = self.cols
         return [flat[i * cols:(i + 1) * cols] for i in range(self.rows)]
 
+    def almost_equal(self, other, eps):
+        """Element-wise comparison with tolerance. False on a shape mismatch
+        or a non-Matrix other (never raises)."""
+        if not isinstance(other, Matrix):
+            return False
+        return self._h.almost_equal(other._h, float(eps))
+
+    def to_sparse(self):
+        """Compress to CSR (exact zeros dropped)."""
+        return Sparse._from_handle(_core._SparseHandle.from_dense(self._h))
+
     def __repr__(self):
         return f"Matrix({self.to_rows()!r})"
 
 
+class Sparse:
+    """CSR (Compressed Sparse Row) matrix (float64). Domain-checked wrapper
+    over unilinalg._core's raw _SparseHandle. Build one via Matrix.to_sparse();
+    there is no direct constructor (CSR is a compression of a dense matrix,
+    not built from scratch)."""
+
+    @classmethod
+    def _from_handle(cls, handle):
+        if handle is None:
+            return None
+        obj = cls.__new__(cls)
+        obj._h = handle
+        return obj
+
+    @property
+    def nnz(self):
+        """Number of stored (non-zero) entries."""
+        return self._h.nnz
+
+    def to_dense(self):
+        return Matrix._from_handle(_checked(self._h.to_dense(), "to_dense"))
+
+    def matvec(self, v):
+        """Sparse matrix-vector product. Raises ValueError on a shape
+        mismatch."""
+        try:
+            len(v)
+        except TypeError:
+            raise TypeError(f"v must be a sized iterable, got {type(v).__name__}") from None
+        result = self._h.matvec(v)
+        if result is None:
+            raise ValueError("matvec: shape mismatch")
+        return result
+
+    def __repr__(self):
+        return f"Sparse(nnz={self.nnz})"
+
+
 def _check_vec_components(*values):
     for v in values:
-        if not isinstance(v, (int, float)):
+        if isinstance(v, bool) or not isinstance(v, (int, float)):
             raise TypeError(f"vector components must be int or float, "
                              f"got {type(v).__name__}")
 
@@ -211,6 +272,14 @@ class Vec2:
     def cross2d(self, other):
         self._check_other(other)
         return _core.vec2_cross2d(self.x, self.y, other.x, other.y)
+
+    def perp(self):
+        """90 degrees counterclockwise rotation: (-y, x)."""
+        return Vec2(*_core.vec2_perp(self.x, self.y))
+
+    def perp_cw(self):
+        """90 degrees clockwise rotation: (y, -x)."""
+        return Vec2(*_core.vec2_perp_cw(self.x, self.y))
 
     def __eq__(self, other):
         return isinstance(other, Vec2) and self.x == other.x and self.y == other.y
@@ -274,4 +343,57 @@ class Vec3:
         return f"Vec3({self.x!r}, {self.y!r}, {self.z!r})"
 
 
-__all__ = ["Matrix", "Vec2", "Vec3", "version", "__version__"]
+class Vec4:
+    """4D vector (float64)."""
+
+    def __init__(self, x, y, z, w):
+        _check_vec_components(x, y, z, w)
+        self.x = float(x)
+        self.y = float(y)
+        self.z = float(z)
+        self.w = float(w)
+
+    def _check_other(self, other):
+        if not isinstance(other, Vec4):
+            raise TypeError(f"expected Vec4, got {type(other).__name__}")
+
+    def __add__(self, other):
+        self._check_other(other)
+        return Vec4(*_core.vec4_add(self.x, self.y, self.z, self.w,
+                                     other.x, other.y, other.z, other.w))
+
+    def __sub__(self, other):
+        self._check_other(other)
+        return Vec4(*_core.vec4_sub(self.x, self.y, self.z, self.w,
+                                     other.x, other.y, other.z, other.w))
+
+    def __mul__(self, s):
+        return Vec4(*_core.vec4_scale(self.x, self.y, self.z, self.w, float(s)))
+
+    __rmul__ = __mul__
+
+    def dot(self, other):
+        self._check_other(other)
+        return _core.vec4_dot(self.x, self.y, self.z, self.w,
+                               other.x, other.y, other.z, other.w)
+
+    @property
+    def length(self):
+        return _core.vec4_length(self.x, self.y, self.z, self.w)
+
+    def normalize(self):
+        return Vec4(*_core.vec4_normalize(self.x, self.y, self.z, self.w))
+
+    def __eq__(self, other):
+        return (isinstance(other, Vec4) and self.x == other.x
+                and self.y == other.y and self.z == other.z and self.w == other.w)
+
+    def __hash__(self):
+        return hash((self.x, self.y, self.z, self.w))
+
+    def __repr__(self):
+        return f"Vec4({self.x!r}, {self.y!r}, {self.z!r}, {self.w!r})"
+
+
+__all__ = ["Matrix", "Sparse", "Vec2", "Vec3", "Vec4", "__version__", "version"]
+

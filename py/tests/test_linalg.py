@@ -19,6 +19,12 @@ def test_matrix_construction_and_indexing():
     assert m.rows == 2 and m.cols == 3
 
 
+def test_matrix_rejects_bool_dimensions():
+    # bool is an int subclass in Python -- must still be rejected explicitly.
+    with pytest.raises(TypeError):
+        unilinalg.Matrix(True, 2)
+
+
 def test_matrix_from_rows():
     m = unilinalg.Matrix.from_rows([[1.0, 2.0], [3.0, 4.0]])
     assert m.to_rows() == [[1.0, 2.0], [3.0, 4.0]]
@@ -87,10 +93,10 @@ def test_determinant_non_square_raises():
 
 def test_cholesky_known_factor():
     a = unilinalg.Matrix.from_rows([[4.0, 2.0], [2.0, 3.0]])
-    l = a.cholesky()
-    assert math.isclose(l[0, 0], 2.0, abs_tol=1e-9)
-    assert math.isclose(l[1, 0], 1.0, abs_tol=1e-9)
-    assert math.isclose(l[1, 1], math.sqrt(2.0), abs_tol=1e-9)
+    lower = a.cholesky()
+    assert math.isclose(lower[0, 0], 2.0, abs_tol=1e-9)
+    assert math.isclose(lower[1, 0], 1.0, abs_tol=1e-9)
+    assert math.isclose(lower[1, 1], math.sqrt(2.0), abs_tol=1e-9)
 
 
 def test_cholesky_non_spd_raises():
@@ -117,7 +123,8 @@ def test_qr_shape():
             assert math.isclose(qtq[i, j], expected, abs_tol=1e-9)
 
 
-def test_qr_rank_deficient_shape_raises():
+def test_qr_rows_less_than_cols_raises():
+    # 2x3: rows < cols, not rank-deficient (this matrix has full row rank).
     a = unilinalg.Matrix.from_rows([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
     with pytest.raises(ValueError):
         a.qr()
@@ -166,7 +173,68 @@ def test_vec_type_error_on_bad_component():
         unilinalg.Vec2("x", 1.0)
 
 
+def test_vec_type_error_on_bool_component():
+    # bool is an int subclass in Python -- must still be rejected explicitly.
+    with pytest.raises(TypeError):
+        unilinalg.Vec2(True, 1.0)
+
+
 def test_vec_type_error_on_bad_other():
     v = unilinalg.Vec2(1.0, 2.0)
     with pytest.raises(TypeError):
         v + "not a vector"
+
+
+def test_vec2_perp():
+    v = unilinalg.Vec2(1.0, 0.0)
+    assert v.perp() == unilinalg.Vec2(0.0, 1.0)
+    assert v.perp_cw() == unilinalg.Vec2(0.0, -1.0)
+
+
+def test_vec4_arithmetic_and_length():
+    a = unilinalg.Vec4(1.0, 2.0, 3.0, 4.0)
+    b = unilinalg.Vec4(5.0, 6.0, 7.0, 8.0)
+    assert a + b == unilinalg.Vec4(6.0, 8.0, 10.0, 12.0)
+    assert b - a == unilinalg.Vec4(4.0, 4.0, 4.0, 4.0)
+    assert a * 2.0 == unilinalg.Vec4(2.0, 4.0, 6.0, 8.0)
+    assert a.dot(b) == 70.0
+    assert unilinalg.Vec4(1.0, 2.0, 2.0, 0.0).length == 3.0
+    n = a.normalize()
+    assert math.isclose(n.length, 1.0, abs_tol=1e-9)
+
+
+def test_vec4_type_error_on_bad_component():
+    with pytest.raises(TypeError):
+        unilinalg.Vec4("x", 1.0, 2.0, 3.0)
+
+
+def test_matrix_almost_equal():
+    a = unilinalg.Matrix.from_rows([[1.0, 2.0], [3.0, 4.0]])
+    b = unilinalg.Matrix.from_rows([[1.0, 2.0], [3.0, 4.0]])
+    c = unilinalg.Matrix.from_rows([[1.0, 2.0], [3.0, 5.0]])
+    assert a.almost_equal(b, 1e-9)
+    assert not a.almost_equal(c, 1e-9)
+    assert not a.almost_equal("not a matrix", 1e-9)
+
+
+def test_sparse_round_trip_and_nnz():
+    dense = unilinalg.Matrix.from_rows([[5.0, 0.0, 0.0],
+                                        [0.0, 8.0, 3.0],
+                                        [0.0, 6.0, 0.0]])
+    sparse = dense.to_sparse()
+    assert sparse.nnz == 4
+    assert sparse.to_dense().almost_equal(dense, 1e-12)
+
+
+def test_sparse_matvec_matches_dense():
+    dense = unilinalg.Matrix.from_rows([[5.0, 0.0, 0.0],
+                                        [0.0, 8.0, 3.0],
+                                        [0.0, 6.0, 0.0]])
+    v = [1.0, 2.0, 3.0]
+    assert dense.to_sparse().matvec(v) == [5.0, 25.0, 12.0]
+
+
+def test_sparse_matvec_shape_mismatch_raises():
+    dense = unilinalg.Matrix.from_rows([[1.0, 0.0], [0.0, 1.0]])
+    with pytest.raises(ValueError):
+        dense.to_sparse().matvec([1.0, 2.0, 3.0])
