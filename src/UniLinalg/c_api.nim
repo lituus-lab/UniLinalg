@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 lituus-lab
-## C ABI for UniLinalg. Built --app:staticlib/--app:lib --noMain --mm:arc -d:release.
+## C ABI for UniLinalg. Built --app:staticlib/--app:lib --noMain --mm:arc -d:danger.
 ## Keep in sync with include/UniLinalg.h; tests/c links the header against this lib.
 ##
 ## Handle-based for Matrix/CsrMatrix (fixed to float64 for the C surface):
@@ -26,6 +26,12 @@ const
   ULIN_ERR_SINGULAR = cint(3)
   ULIN_ERR_NOT_SPD = cint(4)
   ULIN_ERR_BUFFER_TOO_SMALL = cint(5)
+
+  # rows*cols must fit in the cint element counts ulin_matrix_get_buffer
+  # (and rows/cols themselves) return -- above this, `cint(n)` silently wraps
+  # to a wrong, possibly negative count under -d:danger (range checks
+  # compiled away; confirmed by direct testing, not just reasoned about).
+  MaxElemCount = int(high(int32))
 
 # ------------------------------------------------------------------------------
 # Internal helpers (NOT exported): pinned handles, buffer <-> seq, error codes.
@@ -117,8 +123,10 @@ proc ulin_get_error_string(error_code: cint): cstring =
 # ------------------------------------------------------------------------------
 
 proc ulin_matrix_create(rows, cols: cint): pointer =
-  ## Zero matrix of the given shape. NULL if rows/cols <= 0.
+  ## Zero matrix of the given shape. NULL if rows/cols <= 0 or rows*cols
+  ## overflows what a cint element count can represent.
   if rows <= 0 or cols <= 0: return nil
+  if int(rows) * int(cols) > MaxElemCount: return nil
   pin(initMatrix[float64](int(rows), int(cols)))
 
 proc ulin_matrix_destroy(h: pointer) =
@@ -152,8 +160,10 @@ proc ulin_matrix_create_from_buffer(rows, cols: cint, buf: ptr float64,
                                      n: csize_t): pointer =
   ## Matrix from a flat row-major buffer (element (i,j) at buf[i*cols+j]) --
   ## one bulk copy instead of rows*cols individual `ulin_matrix_set` calls.
-  ## NULL if rows/cols <= 0, buf is nil, or n != rows*cols.
+  ## NULL if rows/cols <= 0, buf is nil, n != rows*cols, or rows*cols
+  ## overflows what a cint element count can represent.
   if rows <= 0 or cols <= 0 or buf == nil: return nil
+  if int(rows) * int(cols) > MaxElemCount: return nil
   if int(n) != int(rows) * int(cols): return nil
   pin(matrix[float64](int(rows), int(cols), ptrToSeq(buf, n)))
 
@@ -161,11 +171,16 @@ proc ulin_matrix_get_buffer(h: pointer, outBuf: ptr float64,
                              outCap: csize_t): cint =
   ## Bulk row-major read of every element into outBuf -- one copy instead of
   ## rows*cols individual `ulin_matrix_get` calls. Returns the count written
-  ## (rows*cols), or -1 on a nil handle/buffer or outCap too small.
-  if h == nil or outBuf == nil: return cint(-1)
+  ## (rows*cols), or the negated ULIN_ERR_* reason (-ULIN_ERR_NULL_HANDLE /
+  ## -ULIN_ERR_BUFFER_TOO_SMALL) on failure -- always negative, so an
+  ## existing `< 0` check keeps working unchanged. rows*cols too large for a
+  ## cint count (e.g. via ulin_matrix_mul: two individually in-bounds
+  ## operands can still multiply out past MaxElemCount) is also reported as
+  ## -ULIN_ERR_BUFFER_TOO_SMALL: no outCap could satisfy it either way.
+  if h == nil or outBuf == nil: return -ULIN_ERR_NULL_HANDLE
   let m = cast[AbiMatrix](h)
   let n = m[].rows * m[].cols
-  if int(outCap) < n: return cint(-1)
+  if n > MaxElemCount or int(outCap) < n: return -ULIN_ERR_BUFFER_TOO_SMALL
   seqToBuf(m[].data, outBuf)
   cint(n)
 
@@ -223,23 +238,34 @@ proc ulin_matrix_lu_solve(h: pointer, b: ptr float64, blen: csize_t,
   ## Solves Ax = b, writing x into outBuf (outCap must be >= rows). `refine`
   ## true runs one step of UniAccurate-backed iterative refinement after the
   ## solve, correcting the 1-2 ULP a plain float64 solve can miss (ADR-0006).
-  ## Returns the number of elements written, or -1 on a nil handle/buffer,
-  ## shape mismatch, too-small buffer, or a singular matrix.
-  if h == nil or b == nil or outBuf == nil: return cint(-1)
+  ## Returns the number of elements written, or the negated ULIN_ERR_* reason
+  ## (-ULIN_ERR_NULL_HANDLE / -ULIN_ERR_SHAPE_MISMATCH /
+  ## -ULIN_ERR_BUFFER_TOO_SMALL / -ULIN_ERR_SINGULAR) on failure -- always
+  ## negative, so an existing `< 0` failure check keeps working unchanged.
+  if h == nil or b == nil or outBuf == nil: return -ULIN_ERR_NULL_HANDLE
   let m = matOf(h)
-  if not m.isSquare or int(blen) != m.rows: return cint(-1)
-  if int(outCap) < m.rows: return cint(-1)
+  if not m.isSquare or int(blen) != m.rows: return -ULIN_ERR_SHAPE_MISMATCH
+  if int(outCap) < m.rows: return -ULIN_ERR_BUFFER_TOO_SMALL
   let x =
-    try: solve(m, ptrToSeq(b, blen), refine = refine)
-    except ValueError: return cint(-1)
+    try: solve(m, ptrToSeq(b, blen), useRefinement = refine)
+    except ValueError: return -ULIN_ERR_SINGULAR
   seqToBuf(x, outBuf)
   cint(x.len)
 
 proc ulin_matrix_cholesky(h: pointer): pointer =
   ## Lower-triangular L with A = L L^T. NULL on a nil handle, a non-square
   ## matrix, or a matrix that is not symmetric positive-definite.
+  ##
+  ## The non-square check is required here, not just trusted to cholesky()'s
+  ## own `require:` -- that guard is debug-only (compiled away under
+  ## -d:danger, this build's own flag) and confirmed by direct testing to
+  ## silently return a wrong-but-plausible-looking result on non-square
+  ## input otherwise (the algorithm reads only the first `rows` columns,
+  ## silently ignoring the rest).
   if h == nil: return nil
-  try: pin(cholesky(matOf(h)))
+  let m = matOf(h)
+  if not m.isSquare: return nil
+  try: pin(cholesky(m))
   except ValueError: nil
 
 proc ulin_matrix_qr(h: pointer, out_q, out_r: ptr pointer): cint =
