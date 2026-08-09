@@ -150,6 +150,10 @@ today, no concrete consumer requires it).
 
 ## Accuracy: solve() vs solve(useRefinement=true)
 
+(`useRefinement` is `lu.nim`'s own parameter name for this flag; the Python
+binding and Nim's own `leastSquares` expose the same idea as `refine`
+instead -- see `py/README.md`.)
+
 `solve`'s plain float64 LU can miss the correctly-rounded answer by 1-2 ULP
 even on a well-scaled system. `useRefinement=true` runs one step of
 `UniAccurate`-backed iterative refinement afterward. `nimble bench` prints
