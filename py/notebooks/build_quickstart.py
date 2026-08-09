@@ -44,7 +44,7 @@ a.solve([8.0, 13.0, 6.0])"""),
     ("md", """The plain solve above is 1-2 ULP off -- (1, 2, 3) is exactly
 representable, but float64 Gaussian elimination doesn't land on it.
 `refine=True` runs one step of UniAccurate-backed iterative refinement and
-recovers the exactly-rounded answer here (ADR-0006)."""),
+recovers the exactly-rounded answer here."""),
     ("code", """a.solve([8.0, 13.0, 6.0], refine=True)"""),
     ("md", """A singular matrix is a domain error, not a silently wrong answer."""),
     ("code", """try:
