@@ -17,7 +17,7 @@ designed to be consumed by downstream geometry/physics engines.
 - **Accurate refinement** (`refine.nim`, opt-in `refine = true` on `solve`,
   `inverse`, `leastSquares`, plus per-decomposition `*RefineOnce`) — one step
   of UniAccurate-backed iterative refinement to recover the last few ULP a
-  plain float64 factorization can miss (ADR-0006).
+  plain float64 factorization can miss.
 - **`Vector[D,T]`** — fixed `D` in `{2, 3, 4}`, geometry/physics-oriented
   (dot, cross, length, normalize), constrained to UniMath's `RealField`.
 
