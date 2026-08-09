@@ -91,7 +91,7 @@ nbCode:
   echo "apple, pear, orange = ", solve(prices, [8.0, 13.0, 6.0])
 
 nbText: """
-Apples cost €1, pears €2, oranges €3 -- almost. The second and third
+Apples cost €1, pears €2, oranges €3 -- almost. The first and third
 numbers above aren't quite exact; that's explained (and fixed) further
 down.
 
