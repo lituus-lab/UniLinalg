@@ -128,7 +128,7 @@ class Matrix:
         """Solves Ax = b. Raises ValueError on a non-square matrix, a shape
         mismatch, or a singular matrix. refine=True runs one step of
         UniAccurate-backed iterative refinement after the solve, correcting
-        the 1-2 ULP a plain float64 solve can miss (ADR-0006)."""
+        the 1-2 ULP a plain float64 solve can miss."""
         try:
             blen = len(b)
         except TypeError:
