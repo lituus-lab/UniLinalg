@@ -151,7 +151,7 @@ today, no concrete consumer requires it).
 ## Accuracy: solve() vs solve(useRefinement=true)
 
 `solve`'s plain float64 LU can miss the correctly-rounded answer by 1-2 ULP
-even on a well-scaled system (see ADR-0006). `useRefinement=true` runs one step of
+even on a well-scaled system. `useRefinement=true` runs one step of
 `UniAccurate`-backed iterative refinement afterward. `nimble bench` prints
 both the added cost (`lu_solve` vs `lu_solve_refine`, same CSV/regression
 tracking as every other op) and the accuracy gained (`max|residual|` via
@@ -171,7 +171,7 @@ matrices, for a ~15-25% total-time overhead on top of a fresh `solve` (the
 refinement step itself is O(n^2) against an O(n^3) factorization it reuses
 internally — `refineOnce` called directly on an already-decomposed matrix,
 skipping the redundant re-decomposition `solve(useRefinement=true)` does, is
-cheaper still: ~0.4x a fresh `solve` at n=64, see ADR-0006).
+cheaper still: ~0.4x a fresh `solve` at n=64.
 
 ## Regression gate
 
