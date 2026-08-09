@@ -9,10 +9,12 @@ vectors, backed by the native
 
 UniLinalg factors and solves through LU with partial pivoting, Cholesky for
 symmetric positive-definite systems, Householder QR for least squares, and
-one-sided Jacobi SVD — each with an optional UniAccurate-backed iterative
-refinement step to recover the last few ULP a plain float64 solve can miss.
-CSR sparse matrices cover the mostly-zero case; `Vec2`/`Vec3`/`Vec4` cover
-fixed-dimension geometry, distinct from the runtime-sized `Matrix`.
+one-sided Jacobi SVD. `Matrix.solve`'s optional `refine=True` runs one
+UniAccurate-backed iterative refinement step to recover the last few ULP a
+plain float64 solve can miss — the other three decompositions don't expose
+this option through the Python API. CSR sparse matrices cover the
+mostly-zero case; `Vec2`/`Vec3`/`Vec4` cover fixed-dimension geometry,
+distinct from the runtime-sized `Matrix`.
 
 ## Install
 
@@ -65,10 +67,10 @@ unilinalg.Vec2(3.0, 4.0).length          # 5.0
 | Sparse matrix | `Sparse` (CSR) -- `Matrix.to_sparse`, `Sparse.to_dense`, `Sparse.matvec`, `Sparse.nnz` |
 | Fixed-dimension vectors | `Vec2`, `Vec3`, `Vec4` -- arithmetic, `dot`, `length`, `normalize`; `Vec3.cross`; `Vec2.cross2d`/`perp`/`perp_cw` |
 
-Every constructor and operator validates its input and raises `TypeError`/
-`ValueError` rather than silently coercing or returning a wrong-shaped
-result: a singular matrix, a shape mismatch, or a non-numeric component is
-a domain error, not undefined behavior.
+A numeric-looking element is coerced through `float(...)`, same as a plain
+Python `list` of numbers would be — but a singular matrix, a shape mismatch,
+or a genuinely non-numeric component raises `ValueError`/`TypeError` rather
+than returning a wrong-shaped or silently wrong result.
 
 For an executable tour of the API, see the
 [Python quickstart notebook](https://github.com/lituus-lab/UniLinalg/blob/main/py/notebooks/quickstart.ipynb).
@@ -85,13 +87,22 @@ Building from source (contributing, or a platform without a prebuilt wheel)
 needs a Nim toolchain.
 
 ```bash
-nimble pyLib                                    # native lib for this platform
-cd py && python3 setup.py build_ext --inplace   # build the Cython extension
-cd py && python3 -m pytest -q                   # test
+nimble pyLib   # native lib for this platform
+cd py
+python3 setup.py build_ext --inplace   # build the Cython extension
+python3 -m pytest -q                   # test
 ```
 
-Assumes a POSIX-compatible shell (bash/zsh on Linux/macOS, or WSL/Git Bash
-on Windows) -- use `python` instead of `python3` under PowerShell or
-`cmd.exe`. Run the two commands in order: `pytest` imports the `unilinalg`
-package straight out of this checkout, so it only finds the `_core`
-extension `build_ext --inplace` just compiled if that step already ran.
+On Windows, use `python` instead of `python3` (PowerShell and `cmd.exe`
+both resolve it; `python3` is a POSIX-only convention):
+
+```powershell
+nimble pyLib
+cd py
+python setup.py build_ext --inplace
+python -m pytest -q
+```
+
+Run the build before the test in every case: `pytest` imports the
+`unilinalg` package straight out of this checkout, so it only finds the
+`_core` extension once `build_ext --inplace` has compiled it.
