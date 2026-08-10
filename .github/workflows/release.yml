@@ -35,17 +35,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-    env:
-      UNIMATH_READ_TOKEN: ${{ secrets.UNIMATH_READ_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
-      - name: Allow nimble to fetch UniMath with a token, if configured
-        if: ${{ env.UNIMATH_READ_TOKEN != '' }}
-        run: git config --global url."https://x-access-token:${{ env.UNIMATH_READ_TOKEN }}@github.com/lituus-lab/UniMath".insteadOf "https://github.com/lituus-lab/UniMath"
       - run: nimble install -y
       - run: nimble clibStatic
       - run: nimble clib
@@ -75,17 +70,12 @@ jobs:
         # No Py_LIMITED_API/abi3 in setup.py: the extension is tied to each
         # CPython minor version's C ABI, so every one needs its own wheel.
         python-version: ['3.9', '3.10', '3.11', '3.12', '3.13', '3.14']
-    env:
-      UNIMATH_READ_TOKEN: ${{ secrets.UNIMATH_READ_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
-      - name: Allow nimble to fetch UniMath with a token, if configured
-        if: ${{ env.UNIMATH_READ_TOKEN != '' }}
-        run: git config --global url."https://x-access-token:${{ env.UNIMATH_READ_TOKEN }}@github.com/lituus-lab/UniMath".insteadOf "https://github.com/lituus-lab/UniMath"
       - run: nimble install -y
       - uses: actions/setup-python@v5
         with:

@@ -110,10 +110,8 @@ nimble bench          # throughput + refine-accuracy benchmarks (see bench/READM
 nimble benchReadme    # bench, then splice a headline table into bench/README.md for this machine
 ```
 
-`lituus-lab/UniMath` is public: `nimble install` fetches it with no
-credentials needed. CI still supports an optional `UNIMATH_READ_TOKEN` repo
-secret (see `.github/workflows/ci.yml`) for a private fork/mirror; it's a
-no-op when the secret is unset, as it is by default here now.
+`nimble install` fetches the public `lituus-lab/UniMath` dependency directly;
+no GitHub credentials are required.
 
 ## Benchmarks
 
@@ -134,9 +132,9 @@ whose commits or title are not [Conventional Commits](https://www.conventionalco
 The same gates run locally with pre-commit: `pip install pre-commit && pre-commit install`
 (`CONTRIBUTING.md`).
 
-`docs` publishes to GitHub Pages only from a public repo — `UniLinalg` is
-private today, so that deploy stays skipped here and turns itself on once
-the repo is made public.
+The `docs` job always builds the book and API reference. Following the other
+Uni* repositories, the separate Pages job publishes them only from `main` when
+the repository is public.
 
 ## AI-assisted contributions
 

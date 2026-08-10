@@ -10,8 +10,6 @@ srcDir        = "src"
 
 requires "nim >= 2.0.0"
 requires "https://github.com/lbartoletti/NimContracts#main"
-# Private repo today (see README): local dev needs `gh auth setup-git` or an
-# SSH key with lituus-lab access for this to resolve via `nimble install`.
 requires "https://github.com/lituus-lab/UniMath#main"
 
 task lint, "Fail if nimpretty would reformat a source":

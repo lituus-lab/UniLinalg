@@ -57,20 +57,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-    env:
-      UNIMATH_READ_TOKEN: ${{ secrets.UNIMATH_READ_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
-      # lituus-lab/UniMath is public (see README): nimble fetches it with no
-      # credentials needed by default. This step only activates for a
-      # private fork/mirror, via an optional UNIMATH_READ_TOKEN repo secret.
-      - name: Allow nimble to fetch UniMath with a token, if configured
-        if: ${{ env.UNIMATH_READ_TOKEN != '' }}
-        run: git config --global url."https://x-access-token:${{ env.UNIMATH_READ_TOKEN }}@github.com/lituus-lab/UniMath".insteadOf "https://github.com/lituus-lab/UniMath"
       - run: nimble install -y
       - run: nimble testCi
       - run: nimble testCiRelease
@@ -82,17 +74,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-    env:
-      UNIMATH_READ_TOKEN: ${{ secrets.UNIMATH_READ_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
-      - name: Allow nimble to fetch UniMath with a token, if configured
-        if: ${{ env.UNIMATH_READ_TOKEN != '' }}
-        run: git config --global url."https://x-access-token:${{ env.UNIMATH_READ_TOKEN }}@github.com/lituus-lab/UniMath".insteadOf "https://github.com/lituus-lab/UniMath"
       - run: nimble install -y
       # gcc arrives with Nim's MinGW, GNU make does not ship on the runner image.
       - name: Install GNU make (Windows)
@@ -122,17 +109,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-    env:
-      UNIMATH_READ_TOKEN: ${{ secrets.UNIMATH_READ_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
-      - name: Allow nimble to fetch UniMath with a token, if configured
-        if: ${{ env.UNIMATH_READ_TOKEN != '' }}
-        run: git config --global url."https://x-access-token:${{ env.UNIMATH_READ_TOKEN }}@github.com/lituus-lab/UniMath".insteadOf "https://github.com/lituus-lab/UniMath"
       - run: nimble install -y
       - uses: actions/setup-python@v5
         with:
@@ -255,17 +237,12 @@ jobs:
   lint:
     name: Lint
     runs-on: ubuntu-latest
-    env:
-      UNIMATH_READ_TOKEN: ${{ secrets.UNIMATH_READ_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
-      - name: Allow nimble to fetch UniMath with a token, if configured
-        if: ${{ env.UNIMATH_READ_TOKEN != '' }}
-        run: git config --global url."https://x-access-token:${{ env.UNIMATH_READ_TOKEN }}@github.com/lituus-lab/UniMath".insteadOf "https://github.com/lituus-lab/UniMath"
       # checkVGraph compiles tools/vgraph.nim, which imports contracts (its
       # layerOf/layerOfModule postconditions) -- needs deps resolved first.
       - run: nimble install -y
@@ -275,17 +252,12 @@ jobs:
   docs:
     name: Docs
     runs-on: ubuntu-latest
-    env:
-      UNIMATH_READ_TOKEN: ${{ secrets.UNIMATH_READ_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
-      - name: Allow nimble to fetch UniMath with a token, if configured
-        if: ${{ env.UNIMATH_READ_TOKEN != '' }}
-        run: git config --global url."https://x-access-token:${{ env.UNIMATH_READ_TOKEN }}@github.com/lituus-lab/UniMath".insteadOf "https://github.com/lituus-lab/UniMath"
       - run: nimble install -y
       - run: nimble docsDeps
       # nimib runs the book's code against this build: a stale book fails here.
@@ -299,8 +271,8 @@ jobs:
   pages:
     name: Publish Pages
     needs: docs
-    # Pages serves private repos only on a paid plan, and UniLinalg is private
-    # today. Skipped here; switches itself on once the repo is made public.
+    # Match the Uni* family policy: build docs everywhere, but publish Pages
+    # only for a public repository's main branch.
     if: ${{ !github.event.repository.private && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
@@ -327,17 +299,12 @@ jobs:
     # would come out empty on macOS. No lcov version pin needed — the task
     # suppresses no error, so 1.x and 2.x agree.
     runs-on: ubuntu-latest
-    env:
-      UNIMATH_READ_TOKEN: ${{ secrets.UNIMATH_READ_TOKEN }}
     steps:
       - uses: actions/checkout@v4
         with: { persist-credentials: false }
       - uses: jiro4989/setup-nim-action@v2
         with:
           nim-version: '2.2.10'
-      - name: Allow nimble to fetch UniMath with a token, if configured
-        if: ${{ env.UNIMATH_READ_TOKEN != '' }}
-        run: git config --global url."https://x-access-token:${{ env.UNIMATH_READ_TOKEN }}@github.com/lituus-lab/UniMath".insteadOf "https://github.com/lituus-lab/UniMath"
       - run: sudo apt-get update && sudo apt-get install -y lcov
       - run: nimble install -y
       - run: nimble coverage
