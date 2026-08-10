@@ -111,4 +111,5 @@ Van Loan — no source was copied from another codebase.
   infinite loop on a matrix refinement cannot help).
 - The C ABI (`ulin_matrix_lu_solve`) and Python (`Matrix.solve`) expose the
   same `refine` flag, defaulted off, for parity (ADR-0003). Cholesky/QR/
-  `inverse` refinement is Nim-only for now — no C ABI/Python surface yet.
+  `inverse` refinement is available only through the Nim API; the C ABI and
+  Python binding expose refinement for LU solve, but not inverse.

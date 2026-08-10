@@ -144,9 +144,9 @@ At small `n` (16-32) UniLinalg is competitive or faster: LAPACK/Arraymancer's
 fixed per-call overhead (workspace queries, BLAS thread-pool dispatch)
 dominates there. The remaining single-digit ratio at larger `n` is what
 cache-blocking (already tested and rejected above) and multi-threading buy
-OpenBLAS -- multi-threading is the one lever not yet tried, and the next
-one if more speed is ever needed (see the README's anti-goals: not pursued
-today, no concrete consumer requires it).
+OpenBLAS. Multi-threading remains outside UniLinalg's stated scope; the
+README recommends BLAS/LAPACK implementations when that performance profile
+is required.
 
 ## Accuracy: solve() vs solve(useRefinement=true)
 

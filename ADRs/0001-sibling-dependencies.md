@@ -10,8 +10,8 @@
 
 `vgraph.cfg`'s `[engines]` section is the exhaustive list of similarly-prefixed
 packages this repo may name in a `requires` line; any name absent from it is a
-violation caught by `nimble checkVGraph`. Declared today: UniMath, the real
-dependency `Vector.length()`/`normalize()` compile against (ADR-0005). Adding
+violation caught by `nimble checkVGraph`. UniMath is the declared domain
+dependency that `Vector.length()`/`normalize()` compile against (ADR-0005). Adding
 another entry is a deliberate, reviewed exception, not a default.
 
 Non-domain infrastructure (`nim`, `NimContracts`, `nimsimd`) is unaffected and
