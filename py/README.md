@@ -23,7 +23,7 @@ pip install unilinalg
 ```
 
 Prebuilt wheels include the native UniLinalg library for Linux, macOS, and
-Windows on CPython 3.9–3.14. Installing a wheel needs neither Nim nor a C
+Windows on CPython 3.10–3.14. Installing a wheel needs neither Nim nor a C
 compiler.
 
 ## Quick start
