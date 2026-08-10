@@ -2,7 +2,7 @@
 # Copyright 2026 lituus-lab
 # UniLinalg — linear algebra (Nim + C-ABI + Python).
 
-version       = "0.1.0"
+version       = "1.0.0"
 author        = "lituus-lab"
 description   = "Linear algebra: dense/sparse matrices, LU/Cholesky/QR/SVD, Vector[D,T] (Nim + C-ABI + Python)"
 license       = "Apache-2.0"

@@ -22,4 +22,4 @@ import ./UniLinalg/algorithms/svd
 
 export matrix, sparse, vector, tolerance, refine, lu, cholesky, qr, svd
 
-const UniLinalgVersion* = "0.1.0"
+const UniLinalgVersion* = "1.0.0"

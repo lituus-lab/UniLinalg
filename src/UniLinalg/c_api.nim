@@ -17,7 +17,7 @@
 ## struct for statically-sized" convention (see the book).
 import ../UniLinalg
 
-const UniLinalgVersionC: cstring = "0.1.0"
+const UniLinalgVersionC: cstring = "1.0.0"
 
 const
   ULIN_OK = cint(0)
