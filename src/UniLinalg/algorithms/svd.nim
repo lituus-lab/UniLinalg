@@ -13,7 +13,7 @@
 # rotations are V. Slow next to LAPACK's bidiagonalization, but each step
 # is understandable — and it is notably accurate on small singular values.
 
-import std/math
+import UniMath
 import ../types/matrix
 import contracts
 
