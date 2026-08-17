@@ -11,7 +11,6 @@
 # The scalar T is a UniMath `RealField` (ordered field + sqrt + abs): float32/
 # float64 and the exact scalars Fixed/Rational/BigFloat all qualify.
 
-import std/math
 import UniMath
 import contracts
 import ./tolerance

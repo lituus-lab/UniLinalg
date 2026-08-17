@@ -14,7 +14,8 @@
 # Sign choice: v = x + sign(x_0)*|x|*e_0 — adding (never subtracting) the
 # norm avoids the classic cancellation when x is already nearly axial.
 
-import std/[math, fenv]
+import std/fenv
+import UniMath
 import ../types/matrix
 import contracts
 import ./refine

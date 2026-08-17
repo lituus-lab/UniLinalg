@@ -19,7 +19,7 @@
 # Compiled away under release/danger. References: Golub & Van Loan §4.2.
 
 import contracts
-import std/math
+import UniMath
 import ../types/matrix
 import ./refine
 export refine
