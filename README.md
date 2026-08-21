@@ -14,7 +14,9 @@ designed to be consumed by downstream geometry/physics engines.
   (sparse, compressed-row).
 - **Decompositions** (`algorithms/`) — partial-pivoting LU (`solve`,
   `inverse`, determinant), un-blocked Cholesky, Householder QR
-  (`leastSquares`), one-sided Jacobi SVD, and symmetric Jacobi eigenpairs.
+  (`leastSquares`), compact Householder least squares for tall designs
+  (`leastSquaresCompact`), one-sided Jacobi SVD, and symmetric Jacobi
+  eigenpairs.
 - **Accurate refinement** (`refine.nim`, opt-in `refine = true` on `solve`,
   `inverse`, `leastSquares`, plus per-decomposition `*RefineOnce`) — one step
   of UniAccurate-backed iterative refinement to recover the last few ULP a
@@ -88,7 +90,8 @@ book/                                nimib book
 ADRs/                                0001 sibling deps, 0002 license,
                                       0003 engine&shell, 0004 conventions,
                                       0005 Vector + UniMath, 0006 refine
-                                      via UniAccurate, 0007 symmetric eigen
+                                      via UniAccurate, 0007 symmetric eigen,
+                                      0008 compact QR least squares
 vgraph.cfg tools/vgraph.nim          anti-cycle + sibling-dependency check (ADR-0001)
 .github/workflows/ci.yml             3-OS Nim matrix + C ABI + Python
 ```
