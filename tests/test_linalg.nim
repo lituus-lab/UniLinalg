@@ -223,6 +223,24 @@ suite "QR - Householder":
     # analytic answer: sum(x*y)/sum(x^2) = (1 + 4 + 18)/14 = 23/14
     check near(coeffs[0], 23.0 / 14.0)
 
+  test "compact least squares matches explicit QR without square Q":
+    let a = matrix[float64](5, 3, [
+      1.0, -1.0, 1.0,
+      1.0, -0.5, 0.25,
+      1.0, 0.0, 0.0,
+      1.0, 0.5, 0.25,
+      1.0, 1.0, 1.0])
+    let response = [4.0, 1.0, 0.0, 1.0, 4.0]
+    let compact = leastSquaresCompact(a, response)
+    let explicit = leastSquares(a, response)
+    for index in 0 ..< compact.len:
+      check abs(compact[index] - explicit[index]) < 1e-13
+
+  test "compact least squares rejects rank deficiency":
+    let deficient = matrix[float64](3, 2, [1.0, 1.0, 2.0, 2.0, 3.0, 3.0])
+    expect ValueError:
+      discard leastSquaresCompact(deficient, [1.0, 2.0, 3.0])
+
   test "leastSquares refine=true reduces max|residual| (Bjorck refinement)":
     # Exactly consistent overdetermined system (b in A's column space), so
     # any residual is pure float64 rounding, not model noise.
