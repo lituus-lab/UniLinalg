@@ -273,6 +273,61 @@ suite "SVD - one-sided Jacobi":
     check rank(matrix[float64](2, 2, [1.0, 2.0, 2.0, 4.0])) == 1
     check rank(identity[float64](3)) == 3
 
+suite "symmetric eigendecomposition":
+  test "known matrix is sorted and reconstructs":
+    let a = matrix[float64](2, 2, [2.0, 1.0,
+                                   1.0, 2.0])
+    let d = symmetricEigenDecompose(a)
+    check near(d.values[0], 3.0)
+    check near(d.values[1], 1.0)
+    var diagonal = initMatrix[float64](2, 2)
+    diagonal[0, 0] = d.values[0]
+    diagonal[1, 1] = d.values[1]
+    check almostEqual(d.vectors * diagonal * transpose(d.vectors), a, 1e-11)
+    check almostEqual(transpose(d.vectors) * d.vectors,
+      identity[float64](2), 1e-11)
+
+  test "repeated eigenvalues retain an orthonormal basis":
+    let a = 4.0 * identity[float64](3)
+    let d = symmetricEigenDecompose(a)
+    check d.values == @[4.0, 4.0, 4.0]
+    check d.vectors == identity[float64](3)
+
+  test "float32 and mixed-sign spectrum":
+    let a = matrix[float32](3, 3, [3.0'f32, 2.0, 0.0,
+                                    2.0'f32, 0.0, 0.0,
+                                    0.0'f32, 0.0, -2.0])
+    let d = symmetricEigenDecompose(a, tolerance = 1e-6'f32)
+    check abs(d.values[0] - 4.0'f32) < 2e-5'f32
+    check abs(d.values[1] - (-1.0'f32)) < 2e-5'f32
+    check abs(d.values[2] - (-2.0'f32)) < 2e-5'f32
+
+  test "relative convergence preserves a tiny-scale spectrum":
+    let scale = 1e-200
+    let a = matrix[float64](2, 2, [2.0 * scale, scale,
+                                   scale, 2.0 * scale])
+    let d = symmetricEigenDecompose(a)
+    check abs(d.values[0] / scale - 3.0) < 1e-11
+    check abs(d.values[1] / scale - 1.0) < 1e-11
+
+  test "domain errors survive release builds":
+    expect ValueError:
+      discard symmetricEigenDecompose(Matrix[float64](
+        rows: 2, cols: 2, data: @[1.0, 0.0, 0.0]))
+    expect ValueError:
+      discard symmetricEigenDecompose(matrix[float64](2, 3,
+        [1.0, 0.0, 0.0, 0.0, 1.0, 0.0]))
+    expect ValueError:
+      discard symmetricEigenDecompose(matrix[float64](2, 2,
+        [1.0, 2.0, 3.0, 4.0]))
+    expect ValueError:
+      discard symmetricEigenDecompose(matrix[float64](2, 2,
+        [1.0, 0.0, 0.0, Inf]))
+    expect ValueError:
+      discard symmetricEigenDecompose(matrix[float64](3, 3,
+        [2.0, 1.0, 1.0, 1.0, 3.0, 1.0, 1.0, 1.0, 4.0]),
+        maxSweeps = 1, tolerance = 1e-15)
+
 suite "Sparse CSR":
   test "round-trip dense <-> CSR and nnz":
     let dense = matrix[float64](3, 3, [5.0, 0.0, 0.0,
