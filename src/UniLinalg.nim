@@ -19,7 +19,9 @@ import ./UniLinalg/algorithms/lu
 import ./UniLinalg/algorithms/cholesky
 import ./UniLinalg/algorithms/qr
 import ./UniLinalg/algorithms/svd
+import ./UniLinalg/algorithms/eigen_symmetric
 
-export matrix, sparse, vector, tolerance, refine, lu, cholesky, qr, svd
+export matrix, sparse, vector, tolerance, refine, lu, cholesky, qr, svd,
+  eigen_symmetric
 
 const UniLinalgVersion* = "1.0.0"
