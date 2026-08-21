@@ -159,6 +159,38 @@ int main(void) {
   ulin_matrix_destroy(v);
   ulin_matrix_destroy(sv);
 
+  /* Symmetric eigen: [[2,1],[1,2]] has descending values 3,1. */
+  double evals[2] = {0.0, 0.0};
+  ulin_matrix evecs = NULL;
+  ulin_matrix sym = ulin_matrix_create(2, 2);
+  ulin_matrix_set(sym, 0, 0, 2.0); ulin_matrix_set(sym, 0, 1, 1.0);
+  ulin_matrix_set(sym, 1, 0, 1.0); ulin_matrix_set(sym, 1, 1, 2.0);
+  int eigenStatus = ulin_matrix_symmetric_eigen(
+      sym, evals, 2, &evecs, 64, 1e-12);
+  check_i("symmetric eigen: status", eigenStatus, ULIN_OK);
+  check_d("symmetric eigen: value 0", evals[0], 3.0, 1e-11);
+  check_d("symmetric eigen: value 1", evals[1], 1.0, 1e-11);
+  check_i("symmetric eigen: vector rows", ulin_matrix_rows(evecs), 2);
+  check_i("symmetric eigen: vector cols", ulin_matrix_cols(evecs), 2);
+  ulin_matrix_destroy(evecs);
+  ulin_matrix_destroy(sym);
+
+  ulin_matrix asym = ulin_matrix_create(2, 2);
+  ulin_matrix_set(asym, 0, 1, 1.0);
+  ulin_matrix_set(asym, 1, 0, 2.0);
+  evecs = NULL;
+  check_i("symmetric eigen: asymmetric",
+      ulin_matrix_symmetric_eigen(asym, evals, 2, &evecs, 64, 1e-12),
+      ULIN_ERR_NOT_SYMMETRIC);
+  check_i("symmetric eigen: no output on error", evecs == NULL, 1);
+  check_i("symmetric eigen: short buffer",
+      ulin_matrix_symmetric_eigen(asym, evals, 1, &evecs, 64, 1e-12),
+      ULIN_ERR_BUFFER_TOO_SMALL);
+  check_i("symmetric eigen: NULL handle",
+      ulin_matrix_symmetric_eigen(NULL, evals, 2, &evecs, 64, 1e-12),
+      ULIN_ERR_NULL_HANDLE);
+  ulin_matrix_destroy(asym);
+
   /* Sparse round-trip: same matrix as tests/test_linalg.nim's CSR case. */
   ulin_matrix dense = ulin_matrix_create(3, 3);
   double dvals[9] = {5,0,0, 0,8,3, 0,6,0};
