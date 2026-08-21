@@ -7,8 +7,8 @@ import unilinalg
 
 
 def test_version():
-    assert unilinalg.version() == "1.0.0"
-    assert unilinalg.__version__ == "1.0.0"
+    assert unilinalg.version() == "1.1.0"
+    assert unilinalg.__version__ == "1.1.0"
 
 
 def test_matrix_construction_and_indexing():
