@@ -181,7 +181,76 @@ func leastSquares*[T: SomeFloat](a: Matrix[T], b: openArray[T],
     if refine:
       result = qrRefineOnce(a, d, b, result)
 
-
-
+func leastSquaresCompact*[T: SomeFloat](a: Matrix[T];
+    b: openArray[T]): seq[T] {.contractual.} =
+  ## Solves a tall least-squares system without materialising the square Q.
+  ## Householder reflectors are applied directly to an owned copy of b.
+  require:
+    a.rows >= a.cols
+    b.len == a.rows
+  ensure:
+    result.len == a.cols
+  body:
+    let
+      m = a.rows
+      n = a.cols
+    if m < n or b.len != m:
+      raise newException(ValueError, "compact QR shape mismatch")
+    var
+      r = a
+      transformedB = @b
+    for k in 0 ..< n:
+      var normX = T(0)
+      for row in k ..< m:
+        normX = hypot(normX, r.data[row * n + k])
+      if normX == T(0):
+        continue
+      var reflector = newSeq[T](m - k)
+      for row in k ..< m:
+        reflector[row - k] = r.data[row * n + k]
+      if reflector[0] >= T(0):
+        reflector[0] += normX
+      else:
+        reflector[0] -= normX
+      var reflectorNorm = T(0)
+      for value in reflector:
+        reflectorNorm = hypot(reflectorNorm, value)
+      if reflectorNorm == T(0) or
+          classify(reflectorNorm) in {fcNan, fcInf, fcNegInf}:
+        raise newException(ValueError,
+          "compact QR reflector is not representable")
+      var normSquared = T(0)
+      for index in 0 ..< reflector.len:
+        reflector[index] /= reflectorNorm
+        normSquared += reflector[index] * reflector[index]
+      for column in k ..< n:
+        var dot = T(0)
+        for row in k ..< m:
+          dot += reflector[row - k] * r.data[row * n + column]
+        let factor = T(2) * dot / normSquared
+        for row in k ..< m:
+          r.data[row * n + column] -= factor * reflector[row - k]
+      var rhsDot = T(0)
+      for row in k ..< m:
+        rhsDot += reflector[row - k] * transformedB[row]
+      let rhsFactor = T(2) * rhsDot / normSquared
+      for row in k ..< m:
+        transformedB[row] -= rhsFactor * reflector[row - k]
+      for row in k + 1 ..< m:
+        r.data[row * n + k] = T(0)
+    var maxDiagonal = T(0)
+    for index in 0 ..< n:
+      maxDiagonal = max(maxDiagonal, abs(r.data[index * n + index]))
+    let tolerance = T(n) * epsilon(T) * maxDiagonal
+    result = newSeq[T](n)
+    for row in countdown(n - 1, 0):
+      var value = transformedB[row]
+      for column in row + 1 ..< n:
+        value -= r.data[row * n + column] * result[column]
+      let diagonal = r.data[row * n + row]
+      if abs(diagonal) <= tolerance:
+        raise newException(ValueError,
+          "leastSquaresCompact: rank-deficient matrix")
+      result[row] = value / diagonal
 
 
