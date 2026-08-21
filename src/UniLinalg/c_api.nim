@@ -26,6 +26,9 @@ const
   ULIN_ERR_SINGULAR = cint(3)
   ULIN_ERR_NOT_SPD = cint(4)
   ULIN_ERR_BUFFER_TOO_SMALL = cint(5)
+  ULIN_ERR_NOT_SYMMETRIC = cint(6)
+  ULIN_ERR_NO_CONVERGENCE = cint(7)
+  ULIN_ERR_MEMORY = cint(8)
 
   # rows*cols must fit in the cint element counts ulin_matrix_get_buffer
   # (and rows/cols themselves) return -- above this, `cint(n)` silently wraps
@@ -116,6 +119,9 @@ proc ulin_get_error_string(error_code: cint): cstring =
   of 3: "Singular matrix"
   of 4: "Matrix is not symmetric positive-definite"
   of 5: "Output buffer too small"
+  of 6: "Matrix is not finite and symmetric"
+  of 7: "Iterative algorithm did not converge"
+  of 8: "Memory allocation failed"
   else: "Unknown error"
 
 # ------------------------------------------------------------------------------
@@ -297,6 +303,41 @@ proc ulin_matrix_svd(h: pointer, out_u: ptr pointer,
   out_v[] = pin(d.v)
   seqToBuf(d.s, out_s)
   ULIN_OK
+
+proc ulin_matrix_symmetric_eigen(h: pointer, out_values: ptr float64,
+    out_values_cap: csize_t, out_vectors: ptr pointer, max_sweeps: cint,
+    tolerance: float64): cint =
+  ## Symmetric Jacobi eigendecomposition. Values are descending and vectors
+  ## are returned as columns of the caller-owned output handle.
+  if h == nil or out_values == nil or out_vectors == nil:
+    return ULIN_ERR_NULL_HANDLE
+  let m = matOf(h)
+  if not m.isSquare: return ULIN_ERR_SHAPE_MISMATCH
+  if int(out_values_cap) < m.rows: return ULIN_ERR_BUFFER_TOO_SMALL
+  if max_sweeps <= 0 or tolerance <= 0.0 or tolerance > 1.0 or
+      tolerance != tolerance or abs(tolerance) == Inf:
+    return ULIN_ERR_NO_CONVERGENCE
+  for i in 0 ..< m.rows:
+    for j in 0 ..< m.cols:
+      let value = m[i, j]
+      if value != value or abs(value) == Inf:
+        return ULIN_ERR_NOT_SYMMETRIC
+    for j in 0 ..< i:
+      let scale = max(abs(m[i, j]), abs(m[j, i]))
+      if scale > 0.0 and abs(m[i, j] - m[j, i]) > tolerance * scale:
+        return ULIN_ERR_NOT_SYMMETRIC
+  try:
+    let d = symmetricEigenDecompose(m, int(max_sweeps), tolerance)
+    let vectors = pin(d.vectors)
+    seqToBuf(d.values, out_values)
+    out_vectors[] = vectors
+    ULIN_OK
+  except OutOfMemDefect:
+    ULIN_ERR_MEMORY
+  except ValueError:
+    ULIN_ERR_NO_CONVERGENCE
+  except CatchableError, Defect:
+    ULIN_ERR_NO_CONVERGENCE
 
 # ------------------------------------------------------------------------------
 # Sparse — handle = pinned ref CsrMatrix[float64].

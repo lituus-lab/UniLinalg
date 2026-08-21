@@ -33,6 +33,9 @@ extern "C" {
 #define ULIN_ERR_SINGULAR 3
 #define ULIN_ERR_NOT_SPD 4
 #define ULIN_ERR_BUFFER_TOO_SMALL 5
+#define ULIN_ERR_NOT_SYMMETRIC 6
+#define ULIN_ERR_NO_CONVERGENCE 7
+#define ULIN_ERR_MEMORY 8
 
 /* Opaque handles. Never dereference; only pass between ulin_* calls.
  * Distinct incomplete-struct types, not both bare void*, so passing a
@@ -141,6 +144,15 @@ int ulin_matrix_qr(ulin_matrix h, ulin_matrix *out_q, ulin_matrix *out_r);
  * error. */
 int ulin_matrix_svd(ulin_matrix h, ulin_matrix *out_u,
                      double *out_s, size_t out_s_cap, ulin_matrix *out_v);
+
+/* Jacobi eigendecomposition of a finite symmetric matrix. Writes descending
+ * eigenvalues and a matrix whose columns are the corresponding orthonormal
+ * eigenvectors. The returned matrix handle belongs to the caller and must be
+ * destroyed with ulin_matrix_destroy. No output is published on failure. */
+int ulin_matrix_symmetric_eigen(ulin_matrix h, double *out_values,
+                                size_t out_values_cap,
+                                ulin_matrix *out_vectors, int max_sweeps,
+                                double tolerance);
 
 /* -----------------------------------------------------------------------
  * Sparse — Compressed Sparse Row (CSR), float64.
