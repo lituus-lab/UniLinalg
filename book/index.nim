@@ -223,6 +223,12 @@ measurements wouldn't. `leastSquares` finds the line minimizing the total
 squared error instead -- the same idea behind linear regression in
 statistics.
 
+For tall regression designs that do not need Q itself,
+`leastSquaresCompact` applies each Householder reflector directly to the
+right-hand side. It retains O(rows*columns) storage instead of materialising a
+square `rows*rows` Q matrix; `leastSquares` remains available when explicit
+factor reuse or iterative refinement is required.
+
 ### References
 
 - Wikipedia: [QR decomposition](https://en.wikipedia.org/wiki/QR_decomposition)
