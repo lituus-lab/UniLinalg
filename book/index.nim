@@ -272,6 +272,29 @@ transformation squashes flat, with no independent information along it.
 - Wikipedia: [Jacobi eigenvalue algorithm](https://en.wikipedia.org/wiki/Jacobi_eigenvalue_algorithm) --
   the one-sided variant `svd.nim` implements.
 
+## Principal directions of a symmetric matrix
+
+Covariance and correlation matrices are symmetric. Their eigenvectors give
+orthogonal principal directions, while the eigenvalues quantify the amount
+along each direction. `symmetricEigenDecompose` returns those values from
+largest to smallest and stores each matching vector in a matrix column.
+For `[[2, 1], [1, 2]]`, the sum direction varies three times as much as a unit
+axis and the difference direction varies once:
+"""
+
+nbCode:
+  let covariance = matrix[float64](2, 2, [2.0, 1.0,
+                                           1.0, 2.0])
+  let eigen = symmetricEigenDecompose(covariance)
+  echo "eigenvalues = ", eigen.values
+  echo "eigenvectors by column = ", eigen.vectors
+
+nbText: """
+The decomposition reconstructs `A = V * diag(values) * Vᵗ`. This primitive
+belongs here rather than in a statistics package: PCA can build a covariance
+matrix and then delegate the spectral step without maintaining another
+eigensolver.
+
 ## Why doesn't my computer find exactly 3?
 
 Back to the fruit prices: the plain `solve` near the top of this page gave
