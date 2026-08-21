@@ -76,6 +76,14 @@ calls (2026-08-21):
 These figures establish the local cost curve; they are not a claim of parity
 with a blocked vendor eigensolver.
 
+The same harness measures the compact Householder least-squares path on a
+four-column polynomial design. On this Apple M4 it records 0.101 ms for 1,000
+rows and 1.062 ms for 10,000 rows (`-d:danger`, median of five complete
+solves after two warmups). The window includes the copied matrix/RHS and the
+coefficient result. It excludes deterministic input construction, and an
+accumulated coefficient guard makes every result observable. Unlike the
+explicit `qrDecompose` path, memory grows as O(rows × columns), not O(rows²).
+
 ## -d:danger vs -d:release: the actual first lever
 
 Before reaching for SIMD or blocking, measure what's already on the table.
