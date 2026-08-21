@@ -137,6 +137,33 @@ def test_svd_diagonal_sorted():
     assert math.isclose(s[1], 2.0, abs_tol=1e-9)
 
 
+def test_symmetric_eigen_sorted_reconstruction():
+    a = unilinalg.Matrix.from_rows([[2.0, 1.0], [1.0, 2.0]])
+    values, vectors = a.symmetric_eigen()
+    assert math.isclose(values[0], 3.0, abs_tol=1e-11)
+    assert math.isclose(values[1], 1.0, abs_tol=1e-11)
+    diagonal = unilinalg.Matrix.from_rows([[values[0], 0.0],
+                                           [0.0, values[1]]])
+    rebuilt = vectors @ diagonal @ vectors.transpose()
+    assert rebuilt.almost_equal(a, 1e-11)
+
+
+def test_symmetric_eigen_rejects_invalid_inputs():
+    with pytest.raises(ValueError):
+        unilinalg.Matrix.from_rows([[1.0, 2.0], [3.0, 4.0]]).symmetric_eigen()
+    with pytest.raises(ValueError):
+        unilinalg.Matrix.from_rows([[1.0, math.inf],
+                                    [math.inf, 1.0]]).symmetric_eigen()
+    with pytest.raises(ValueError):
+        unilinalg.Matrix.from_rows([[1.0, 0.0, 0.0],
+                                    [0.0, 1.0, 0.0]]).symmetric_eigen()
+    with pytest.raises(TypeError):
+        unilinalg.Matrix.from_rows([[1.0]]).symmetric_eigen(max_sweeps=True)
+    # tolerance is relative, so anything above 1.0 is out of domain
+    with pytest.raises(ValueError):
+        unilinalg.Matrix.from_rows([[1.0]]).symmetric_eigen(tolerance=2.0)
+
+
 def test_matrix_shape_mismatch_raises():
     a = unilinalg.Matrix(2, 2)
     b = unilinalg.Matrix(3, 3)
