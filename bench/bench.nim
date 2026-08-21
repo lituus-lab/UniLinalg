@@ -3,7 +3,7 @@
 ## UniLinalg benchmark harness
 ## ============================
 ##
-## Deterministic micro-benchmarks for Matrix ops and the four decompositions.
+## Deterministic micro-benchmarks for Matrix ops and the decompositions.
 ## `--csv:<file>` writes `op,n,ms,dim_per_sec` (n/seconds, not a FLOP count).
 ## `--baseline:<file> --threshold:<f>` flags regressions past that fraction
 ## (default 0.15) and exits non-zero. See bench/README.md for methodology.
@@ -59,6 +59,7 @@ proc fmtDimPerSec(n: int, ms: float): string =
   if ms <= 0: "-" else: (&"{(n.float / (ms / 1000.0)):.0f}")
 
 var rows: seq[Row]
+var eigenGuard: float64
 proc record(op: string, n: int, ms: float) =
   rows.add Row(op: op, n: n, ms: ms)
   echo &"  {op:<22} n={n:>6}  {ms:>10.3f} ms  {fmtDimPerSec(n, ms):>14} dim/s"
@@ -103,6 +104,13 @@ proc benchAll() =
     let a = randMatrix(n, 18)
     let ms = timed: discard svdDecompose(a)
     record("svd (one-sided Jacobi)", n, ms)
+
+  for n in [16, 32, 64]:
+    let a = randSpdMatrix(n, 19)
+    let ms = timed:
+      let d = symmetricEigenDecompose(a)
+      eigenGuard = eigenGuard + d.values[0]
+    record("eigen (symmetric Jacobi)", n, ms)
 
 # --------------------------------------------------------------------------
 # Precision parity: solve() vs solve(useRefinement=true) -- see ADR-0006
@@ -189,6 +197,7 @@ when isMainModule:
     elif a.startsWith("--threshold:"): threshold = parseFloat(a[12 .. ^1])
     elif a.startsWith("--md:"): mdOut = a[5 .. ^1]
   benchAll()
+  echo &"eigen guard: {eigenGuard:.6e}"
   benchRefineParity()
   if csvOut.len > 0: writeCsv(csvOut)
   if mdOut.len > 0: writeMd(mdOut)
