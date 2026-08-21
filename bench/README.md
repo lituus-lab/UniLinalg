@@ -51,13 +51,30 @@ reflected this measurement bias, not just Jacobi's sweep-count variance.
 
 Every comparison checks a **residual** for each implementation independently
 (does the result actually satisfy `Ax=b` / `LL^T=A` / `QR=A` /
-`U diag(S) V^T=A`?), rather than comparing outputs bitwise: Householder sign
+`U diag(S) V^T=A` / `V diag(values) V^T=A`?), rather than comparing outputs bitwise: Householder sign
 conventions and Jacobi sweep order legitimately differ between
 implementations. Singular values *are* unique (both sorted descending), so
 `vs_lapack.nim`/`vs_arraymancer.nim` additionally print
 `max|s_unilinalg - s_reference|` as an unambiguous cross-check -- observed at
 ~1e-14 (float64 rounding noise) on this machine, i.e. the two independent
 implementations agree to the last representable bit.
+
+The symmetric-eigen window measures the complete decomposition, including
+the private matrix copy, rotations, sorting, and result allocations. A global
+checksum consumes the largest eigenvalue from every iteration so an optimizer
+cannot discard the O(n³) call as unused.
+
+Apple M4, Nim 2.2.10, `-d:danger`, two warmups and the median of five complete
+calls (2026-08-21):
+
+| symmetric Jacobi size | median |
+|---:|---:|
+| 16 | 0.029 ms |
+| 32 | 0.216 ms |
+| 64 | 1.487 ms |
+
+These figures establish the local cost curve; they are not a claim of parity
+with a blocked vendor eigensolver.
 
 ## -d:danger vs -d:release: the actual first lever
 
