@@ -34,6 +34,15 @@ proc randVec(n: int, seed: int64): seq[float64] =
   result = newSeq[float64](n)
   for i in 0 ..< n: result[i] = r.rand(2.0) - 1.0
 
+proc polynomialDesign(rows, columns: int): Matrix[float64] =
+  result = initMatrix[float64](rows, columns)
+  for row in 0 ..< rows:
+    let x = -1.0 + 2.0 * row.float64 / (rows - 1).float64
+    var power = 1.0
+    for column in 0 ..< columns:
+      result[row, column] = power
+      power *= x
+
 const
   WarmupIters = 2
   SampleCount = 5 # odd: the median is one element, no averaging needed.
@@ -59,7 +68,7 @@ proc fmtDimPerSec(n: int, ms: float): string =
   if ms <= 0: "-" else: (&"{(n.float / (ms / 1000.0)):.0f}")
 
 var rows: seq[Row]
-var eigenGuard: float64
+var eigenGuard, leastSquaresGuard: float64
 proc record(op: string, n: int, ms: float) =
   rows.add Row(op: op, n: n, ms: ms)
   echo &"  {op:<22} n={n:>6}  {ms:>10.3f} ms  {fmtDimPerSec(n, ms):>14} dim/s"
@@ -99,6 +108,17 @@ proc benchAll() =
     let a = randMatrix(n, 17)
     let ms = timed: discard qrDecompose(a)
     record("qr", n, ms)
+
+  for rows in [1_000, 10_000]:
+    let design = polynomialDesign(rows, 4)
+    var observations = newSeq[float64](rows)
+    for row in 0 ..< rows:
+      observations[row] = 1.0 + 2.0 * design[row, 1] -
+        0.5 * design[row, 2] + 0.25 * design[row, 3]
+    let ms = timed:
+      let coefficients = leastSquaresCompact(design, observations)
+      leastSquaresGuard += coefficients[0]
+    record("qr_least_squares_4col", rows, ms)
 
   for n in [16, 32, 64]:
     let a = randMatrix(n, 18)
@@ -198,6 +218,7 @@ when isMainModule:
     elif a.startsWith("--md:"): mdOut = a[5 .. ^1]
   benchAll()
   echo &"eigen guard: {eigenGuard:.6e}"
+  echo &"least-squares guard: {leastSquaresGuard:.6e}"
   benchRefineParity()
   if csvOut.len > 0: writeCsv(csvOut)
   if mdOut.len > 0: writeMd(mdOut)
