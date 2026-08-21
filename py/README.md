@@ -3,7 +3,7 @@
 # unilinalg
 
 Linear algebra for Python — dense and sparse matrices, the classic
-decompositions (LU, Cholesky, QR, SVD), and fixed-dimension geometric
+decompositions (LU, Cholesky, QR, SVD, symmetric eigenpairs), and fixed-dimension geometric
 vectors, backed by the native
 [UniLinalg](https://github.com/lituus-lab/UniLinalg) library.
 
@@ -62,7 +62,7 @@ unilinalg.Vec2(3.0, 4.0).length          # 5.0
 |---|---|
 | Dense matrix | `Matrix` -- construction, indexing, `+`/`-`/`@`/`*`, `transpose`, `almost_equal` |
 | Linear solve | `Matrix.solve` (LU, partial pivoting), `Matrix.determinant` |
-| Decompositions | `Matrix.cholesky`, `Matrix.qr`, `Matrix.svd` |
+| Decompositions | `Matrix.cholesky`, `Matrix.qr`, `Matrix.svd`, `Matrix.symmetric_eigen` |
 | Accurate refinement | `refine=True` on `solve` -- one UniAccurate-backed correction step |
 | Sparse matrix | `Sparse` (CSR) -- `Matrix.to_sparse`, `Sparse.to_dense`, `Sparse.matvec`, `Sparse.nnz` |
 | Fixed-dimension vectors | `Vec2`, `Vec3`, `Vec4` -- arithmetic, `dot`, `length`, `normalize`; `Vec3.cross`; `Vec2.cross2d`/`perp`/`perp_cw` |

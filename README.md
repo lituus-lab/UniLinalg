@@ -3,7 +3,8 @@
 # UniLinalg
 
 A linear algebra library: dense/sparse matrices with LU, Cholesky, QR, SVD,
-and `Vector[D,T]`, a fixed-dimension geometric/physical vector. Depends on
+symmetric eigendecomposition, and `Vector[D,T]`, a fixed-dimension
+geometric/physical vector. Depends on
 UniMath (`UniLinalg --> UniMath`) for `Vector`'s exact-precision arithmetic;
 designed to be consumed by downstream geometry/physics engines.
 
@@ -13,7 +14,7 @@ designed to be consumed by downstream geometry/physics engines.
   (sparse, compressed-row).
 - **Decompositions** (`algorithms/`) — partial-pivoting LU (`solve`,
   `inverse`, determinant), un-blocked Cholesky, Householder QR
-  (`leastSquares`), one-sided Jacobi SVD.
+  (`leastSquares`), one-sided Jacobi SVD, and symmetric Jacobi eigenpairs.
 - **Accurate refinement** (`refine.nim`, opt-in `refine = true` on `solve`,
   `inverse`, `leastSquares`, plus per-decomposition `*RefineOnce`) — one step
   of UniAccurate-backed iterative refinement to recover the last few ULP a
@@ -47,7 +48,8 @@ refinement residual.
   boundary (runtime shape vs. compile-time dimension), not a missing feature.
 - **Not a source of new numeric algorithms.** The decompositions are the
   textbook versions (partial-pivoting LU, un-blocked Cholesky, Householder
-  QR, one-sided Jacobi SVD); no research-grade variants.
+  QR, one-sided Jacobi SVD, symmetric Jacobi eigenpairs); no research-grade
+  variants.
 
 ## Provenance & development
 
@@ -75,7 +77,7 @@ src/UniLinalg/types/matrix.nim       Matrix[T] (dense, runtime-sized)
 src/UniLinalg/types/sparse.nim       CsrMatrix[T]
 src/UniLinalg/types/vector.nim       Vector[D,T] (compile-time-sized, RealField)
 src/UniLinalg/types/tolerance.nim    EPSILON_DEFAULT, almostZero, almostEqual
-src/UniLinalg/algorithms/{lu,cholesky,qr,svd}.nim   decompositions
+src/UniLinalg/algorithms/{lu,cholesky,qr,svd,eigen_symmetric}.nim   decompositions
 src/UniLinalg/algorithms/refine.nim  residual(), shared by each decomposition's refine step
 src/UniLinalg/c_api.nim              C ABI (ulin_ prefix)
 include/UniLinalg.h                  hand-written C header
@@ -86,7 +88,7 @@ book/                                nimib book
 ADRs/                                0001 sibling deps, 0002 license,
                                       0003 engine&shell, 0004 conventions,
                                       0005 Vector + UniMath, 0006 refine
-                                      via UniAccurate
+                                      via UniAccurate, 0007 symmetric eigen
 vgraph.cfg tools/vgraph.nim          anti-cycle + sibling-dependency check (ADR-0001)
 .github/workflows/ci.yml             3-OS Nim matrix + C ABI + Python
 ```
