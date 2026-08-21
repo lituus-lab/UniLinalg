@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 lituus-lab
 """unilinalg — Python binding over the UniLinalg C library."""
+import math
+
 from . import _core
 
 __version__ = _core.version().decode("ascii")
@@ -164,6 +166,32 @@ class Matrix:
             raise ValueError("svd requires rows >= cols")
         u, s, v = result
         return (Matrix._from_handle(u), s, Matrix._from_handle(v))
+
+    def symmetric_eigen(self, max_sweeps=64, tolerance=1e-12):
+        """Eigenvalues and column eigenvectors of a finite symmetric matrix.
+
+        Eigenvalues are returned in descending order. ``tolerance`` is
+        relative to the largest diagonal magnitude and must lie in (0, 1].
+        Raises ``ValueError`` for a non-square, asymmetric, non-finite, or
+        non-convergent input.
+        """
+        if isinstance(max_sweeps, bool) or not isinstance(max_sweeps, int):
+            raise TypeError("max_sweeps must be int")
+        if max_sweeps <= 0:
+            raise ValueError("max_sweeps must be positive")
+        if isinstance(tolerance, bool) or not isinstance(tolerance, (int, float)):
+            raise TypeError("tolerance must be a real number")
+        tolerance = float(tolerance)
+        if not math.isfinite(tolerance) or tolerance <= 0.0 or tolerance > 1.0:
+            raise ValueError("tolerance must be finite and in (0, 1]")
+        if self.rows != self.cols:
+            raise ValueError("symmetric_eigen requires a square matrix")
+        result = self._h.symmetric_eigen(max_sweeps, tolerance)
+        if result is None:
+            raise ValueError("symmetric_eigen requires a finite symmetric "
+                             "matrix and a convergent iteration")
+        values, vectors = result
+        return (values, Matrix._from_handle(vectors))
 
     def to_rows(self):
         """One bulk C call, not rows*cols individual `get` calls -- see
@@ -396,4 +424,3 @@ class Vec4:
 
 
 __all__ = ["Matrix", "Sparse", "Vec2", "Vec3", "Vec4", "__version__", "version"]
-

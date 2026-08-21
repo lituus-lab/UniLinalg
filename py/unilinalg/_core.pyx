@@ -35,6 +35,7 @@ cdef extern from "UniLinalg.h":
     int ULIN_ERR_NULL_HANDLE
     int ULIN_ERR_SHAPE_MISMATCH
     int ULIN_ERR_BUFFER_TOO_SMALL
+    int ULIN_ERR_MEMORY
 
     int ulin_matrix_almost_equal(ulin_matrix a, ulin_matrix b, double eps)
 
@@ -66,6 +67,10 @@ cdef extern from "UniLinalg.h":
     int ulin_matrix_qr(ulin_matrix h, ulin_matrix *out_q, ulin_matrix *out_r)
     int ulin_matrix_svd(ulin_matrix h, ulin_matrix *out_u,
                          double *out_s, size_t out_s_cap, ulin_matrix *out_v)
+    int ulin_matrix_symmetric_eigen(ulin_matrix h, double *out_values,
+                                     size_t out_values_cap,
+                                     ulin_matrix *out_vectors,
+                                     int max_sweeps, double tolerance)
     ulin_matrix ulin_matrix_create_from_buffer(int rows, int cols,
                                                 const double *buf, size_t n)
     int ulin_matrix_get_buffer(ulin_matrix h, double *out_buf, size_t out_cap)
@@ -240,6 +245,19 @@ cdef class _MatrixHandle:
         if status != ULIN_OK:
             return None
         return (_wrap(u), out.tolist(), _wrap(v))
+
+    def symmetric_eigen(self, int max_sweeps, double tolerance):
+        cdef int rows = ulin_matrix_rows(self._h)
+        cdef array.array out = array.array('d', bytes(rows * sizeof(double)))
+        cdef double[::1] values = out
+        cdef ulin_matrix vectors = NULL
+        cdef int status = ulin_matrix_symmetric_eigen(
+            self._h, &values[0], rows, &vectors, max_sweeps, tolerance)
+        if status == ULIN_ERR_MEMORY:
+            raise MemoryError("symmetric eigendecomposition allocation failed")
+        if status != ULIN_OK:
+            return None
+        return (out.tolist(), _wrap(vectors))
 
 
 cdef _MatrixHandle _wrap(ulin_matrix h):
