@@ -24,4 +24,4 @@ import ./UniLinalg/algorithms/eigen_symmetric
 export matrix, sparse, vector, tolerance, refine, lu, cholesky, qr, svd,
   eigen_symmetric
 
-const UniLinalgVersion* = "1.0.0"
+const UniLinalgVersion* = "1.1.0"
