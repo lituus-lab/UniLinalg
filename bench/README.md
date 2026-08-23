@@ -219,6 +219,9 @@ machine's block; a second machine (say a FreeBSD/Zen4 box,
 alongside, so this table can carry more than one machine's numbers at once
 without either overwriting the other.
 
+<!-- Everything below is spliced in by `nimble benchReadme`; its sub-labels and
+     column widths are generated, not hand-written prose. -->
+<!-- markdownlint-disable MD013 MD036 -->
 <!-- bench:insert -->
 
 <!-- bench:machine=macosx-apple-m4 -->
