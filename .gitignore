@@ -53,3 +53,11 @@ examples/c/demo
 
 *.log
 *.core
+
+# Nimble mirrors a URL dependency's checkout into the project directory when it
+# resolves one. Seven of them, named after the URL with the punctuation
+# stripped. Not ours, and not something anyone should commit.
+githubcom_*/
+
+# nimibook build output. `docs` copies it to pages/, which is what ships.
+book/__site/

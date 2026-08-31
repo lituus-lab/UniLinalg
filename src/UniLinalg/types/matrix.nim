@@ -132,6 +132,8 @@ func `*`*[T](s: T, m: Matrix[T]): Matrix[T] =
     result.data[i] = s * m.data[i]
 
 func transpose*[T](m: Matrix[T]): Matrix[T] =
+  ## The transpose, as a new matrix. Rows and columns swap, so a non-square
+  ## matrix changes shape and the result cannot be written back over `m`.
   result = initMatrix[T](m.cols, m.rows)
   for i in 0 ..< m.rows:
     for j in 0 ..< m.cols:

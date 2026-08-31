@@ -34,18 +34,25 @@ type
 
 func initVector*[D: static[int], T: RealField](values: array[D, T]): Vector[D,
     T] {.inline.} =
+  ## A vector from an array of the same length. `D` is static, so the length
+  ## is checked when the call is compiled rather than when it runs.
   result.data = values
 
 func vec2*[T: RealField](x, y: T): Vector[2, T] {.inline.} =
+  ## A 2-vector from its components.
   result.data = [x, y]
 
 func vec3*[T: RealField](x, y, z: T): Vector[3, T] {.inline.} =
+  ## A 3-vector from its components.
   result.data = [x, y, z]
 
 func vec4*[T: RealField](x, y, z, w: T): Vector[4, T] {.inline.} =
+  ## A 4-vector from its components.
   result.data = [x, y, z, w]
 
 func zeroVector*[D: static[int], T: RealField](): Vector[D, T] {.inline.} =
+  ## The zero vector. `zero(T)` rather than a literal, so this holds for a
+  ## `T` whose additive identity is not the number 0.
   for i in 0 ..< D:
     result.data[i] = zero(T)
 
@@ -115,6 +122,7 @@ func `-`*[D: static[int], T: RealField](v: Vector[D, T]): Vector[D,
 
 func `*`*[D: static[int], T: RealField](v: Vector[D, T], s: T): Vector[D,
     T] {.inline.} =
+  ## Scale by a scalar, componentwise.
   for i in 0 ..< D:
     result.data[i] = v.data[i] * s
 
@@ -138,6 +146,7 @@ func `-=`*[D: static[int], T: RealField](v1: var Vector[D, T], v2: Vector[D,
     v1.data[i] = v1.data[i] - v2.data[i]
 
 func `*=`*[D: static[int], T: RealField](v: var Vector[D, T], s: T) {.inline.} =
+  ## Scale in place. Same result as `v = v * s` and no temporary.
   for i in 0 ..< D:
     v.data[i] = v.data[i] * s
 
@@ -220,6 +229,9 @@ func `!=`*[D: static[int], T: RealField](v1, v2: Vector[D,
 
 func almostEqual*[D: static[int], T: RealField](v1, v2: Vector[D, T],
     eps: T): bool =
+  ## True when every pair of components is within `eps`. Componentwise, not a
+  ## distance: a vector can differ by `eps` in each of `D` components and still
+  ## compare equal here, which is what a per-component tolerance means.
   for i in 0 ..< D:
     if not almostEqual(v1.data[i], v2.data[i], eps):
       return false
