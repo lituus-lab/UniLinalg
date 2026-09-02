@@ -81,10 +81,6 @@ proc seqToBuf(s: seq[float64], buf: ptr float64) {.inline.} =
   if buf != nil and s.len > 0:
     copyMem(buf, unsafeAddr s[0], s.len * sizeof(float64))
 
-# Internal init-once flag. Declared outside the exportc block (unimath_init's
-# doctrine): a writable bool exported as a raw C symbol would let a host
-# bypass ulin_init().
-var gInited: bool
 
 # Unmangled C symbols, C calling convention, exported from the shared lib.
 
@@ -144,10 +140,14 @@ proc NimMain() {.importc, cdecl.}
 proc ulin_init(): bool =
   ## Bring up the Nim/ARC runtime. Call once before any other entry point.
   ## Idempotent. Returns true.
+  ##
+  ## The work is `ensureRuntime`, which every entry point calls. It used to be
+  ## followed by a direct NimMain, so under -d:staticNoAutoInit the module
+  ## initializers ran twice, rebuilding every global while the first set was
+  ## still live -- and the flag meant to prevent it was itself a Nim global,
+  ## which that second run reset. Reproduced in UniColor: the second
+  ## `uc_palette_make` of a process died inside Nim's allocator.
   ensureRuntime()
-  if not gInited:
-    NimMain()
-    gInited = true
   true
 
 proc ulin_cleanup() =
