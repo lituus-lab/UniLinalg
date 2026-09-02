@@ -34,6 +34,10 @@ CI: 3-OS Nim matrix + C ABI (linux/macOS) + Python.
   touching `Matrix` internals, so Nim's own bound/overflow checks are
   redundant there. Measured: `-d:danger` vs `-d:release` closes most of the
   gap to LAPACK/Arraymancer (see `bench/README.md`) at zero code cost.
+- A change to `c_api.nim` is verified by `ctest`, `pyTest` and, where there
+  is one, `wasmTest`: three linkages, three runtime bootstraps. A green
+  `ctest` alone proved nothing the day the shared build lost its
+  initializer and every registry answered with the sentinel.
 - C symbols `ulin_*` (prefix `ulin_`); lib `libUniLinalg`; header `UniLinalg.h`.
 - `types/` (matrix, sparse, vector, tolerance) never imports `algorithms/`
   (lu, cholesky, qr, svd); enforced by `nimble checkVGraph`.
