@@ -159,7 +159,8 @@ proc benchRefineParity() =
     let refined = solve(a, b, useRefinement = true)
     let plainRes = maxResidual(a, b, plain)
     let refinedRes = maxResidual(a, b, refined)
-    parityRows.add ParityRow(n: n, cond2: cond2, plainRes: plainRes, refinedRes: refinedRes)
+    parityRows.add ParityRow(n: n, cond2: cond2, plainRes: plainRes,
+        refinedRes: refinedRes)
     echo &"  n={n:>4}  cond2={cond2:>10.2f}  " &
         &"max|residual| plain={plainRes:.3e}  " &
         &"refined={refinedRes:.3e}"
