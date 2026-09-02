@@ -203,18 +203,18 @@ task clib, "C shared library":
   # (SECURITY.md) before touching Matrix internals, so Nim's own bound/
   # overflow checks are redundant belt-and-suspenders there, not a safety net
   # foreign callers rely on.
-  exec "nim c --app:lib --noMain --mm:arc -d:danger -o:" & sharedLib & macArgs &
+  exec "nim c --app:lib -d:noAutoInit --noMain --mm:arc -d:danger -o:" & sharedLib & macArgs &
        " src/UniLinalg/c_api.nim"
   done "clib"
 
 task clibStatic, "C static library":
-  exec "nim c --app:staticlib -d:staticNoAutoInit --noMain --mm:arc -d:danger -o:" & staticLib &
+  exec "nim c --app:staticlib -d:noAutoInit --noMain --mm:arc -d:danger -o:" & staticLib &
        " src/UniLinalg/c_api.nim"
   done "clibStatic"
 
 task clibMsvc, "C static library, MSVC ABI (Windows Python extension)":
   # CPython on Windows is MSVC-built and cannot link MinGW output.
-  exec "nim c --cc:vcc --app:staticlib -d:staticNoAutoInit --noMain --mm:arc -d:danger" &
+  exec "nim c --cc:vcc --app:staticlib -d:noAutoInit --noMain --mm:arc -d:danger" &
        " -o:UniLinalg.lib src/UniLinalg/c_api.nim"
   done "clibMsvc"
 
