@@ -28,9 +28,11 @@ pip install unilinalg
 ```
 
 CI installs the wheel the release actually publishes and executes this
-notebook against it, so a change that breaks the API breaks the build -- but
-only cell *execution* is checked, not that a printed value still matches
-what's committed here."""),
+notebook against it, so a change that breaks the API breaks the build. The
+outputs stored below are compared against that run too -- GitHub renders them,
+so a stale one would go on being read as current. Floats are compared rounded,
+because the unrefined solve just below is deliberately a couple of ULP off and
+its last digits differ between machines."""),
     ("md", "## Matrix: solve a linear system"),
     ("code", """import unilinalg
 
