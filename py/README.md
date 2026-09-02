@@ -19,7 +19,7 @@ distinct from the runtime-sized `Matrix`.
 ## Install
 
 ```bash
-pip install unilinalg
+pip install lituus-unilinalg
 ```
 
 Prebuilt wheels include the native UniLinalg library for Linux, macOS, and
